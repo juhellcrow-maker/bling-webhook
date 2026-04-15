@@ -103,7 +103,7 @@ app.get("/refresh-token", async (req, res) => {
 app.get("/pedidos-abertos", async (req, res) => {
   try {
     const response = await axios.get(
-      "https://api.bling.com.br/Api/v3/pedidos/vendas?situacao=1",
+      "https://api.bling.com.br/Api/v3/pedidos/vendas?pagina=1&limite=10",
       {
         headers: {
           Authorization: `Bearer ${ACCESS_TOKEN}`,
@@ -112,21 +112,29 @@ app.get("/pedidos-abertos", async (req, res) => {
       }
     );
 
-    const pedidos = response.data.data;
+    console.log("RESPOSTA BRUTA:", response.data);
 
-    const resultado = pedidos.map(pedido => {
-      return {
-        id: pedido.id,
-        numero: pedido.numero,
-        data: pedido.data,
-        itens: pedido.itens.map(item => ({
-          produto: item.descricao,
-          codigo: item.codigo,
-          quantidade: item.quantidade,
-          valor: item.valor
-        }))
-      };
-    });
+    const pedidos = response.data?.data;
+
+    if (!pedidos || !Array.isArray(pedidos)) {
+      return res.json({
+        erro: true,
+        mensagem: "Formato inesperado da API",
+        resposta: response.data
+      });
+    }
+
+    const resultado = pedidos.map(pedido => ({
+      id: pedido.id,
+      numero: pedido.numero,
+      data: pedido.data,
+      itens: pedido.itens?.map(item => ({
+        produto: item.descricao,
+        codigo: item.codigo,
+        quantidade: item.quantidade,
+        valor: item.valor
+      })) || []
+    }));
 
     return res.json({
       ok: true,
