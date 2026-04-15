@@ -5,7 +5,7 @@ import axios from "axios";
 const app = express();
 app.use(express.json());
 
-const ACCESS_TOKEN = "4c1af41ab7f469419a76eee8d6930a31485d7af0";
+const ACCESS_TOKEN = "b804763144274df39d70887279025d4dd6293047";
 
 app.get("/callback", async (req, res) => {
   try {
