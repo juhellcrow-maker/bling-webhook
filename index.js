@@ -9,7 +9,7 @@ app.use(express.json());
 /**
  * 🔐 CONFIG (RECOMENDADO usar ENV no Render depois)
  */
-let ACCESS_TOKEN = "b804763144274df39d70887279025d4dd6293047";
+let ACCESS_TOKEN = "a6c53299a95507d786be2384b9212f98017d9702";
 let REFRESH_TOKEN = "feae48a9a024a912ff5d3c767b14bf73cdbde104";
 
 const CLIENT_ID = "3ce0ca5a754902d36bd3c27fd0be1f49f0790b3c";
