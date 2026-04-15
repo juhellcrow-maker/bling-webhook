@@ -103,6 +103,7 @@ app.get("/pedidos-abertos", async (req, res) => {
 
     const resultado = pedidos.map(p => ({
       id: p.id,
+      numero: p.numero,
       numeroLoja: p.numeroLoja,
       lojaId: p.loja?.id,
       unidade: p.loja?.unidadeNegocio?.id,
