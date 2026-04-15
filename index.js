@@ -1,39 +1,42 @@
-app.get("/processar-pedidos", async (req, res) => {
-  try {
-    console.log("Iniciando processamento de pedidos...");
+import express from "express";
+import axios from "axios";
 
-    const pedidosResponse = await axios.get(
-      "https://api.bling.com.br/Api/v3/pedidos/vendas",
+const app = express();
+app.use(express.json());
+
+// 👉 COLOQUE SEU ACCESS TOKEN AQUI
+const ACCESS_TOKEN = "SEU_ACCESS_TOKEN_AQUI";
+
+app.get("/teste-bling", async (req, res) => {
+  try {
+    console.log("Testando API do Bling...");
+
+    const response = await axios.get(
+      "https://api.bling.com.br/Api/v3/produtos",
       {
-        headers: { Authorization: `Bearer ${ACCESS_TOKEN}` }
+        headers: {
+          Authorization: `Bearer ${ACCESS_TOKEN}`
+        }
       }
     );
 
-    const pedidos = pedidosResponse.data.data;
+    console.log("Resposta do Bling:");
+    console.log(JSON.stringify(response.data, null, 2));
 
-    for (const pedido of pedidos) {
-      const pedidoId = pedido.id;
-
-      console.log("Processando pedido:", pedidoId);
-
-      const detalhe = await axios.get(
-        `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}`,
-        {
-          headers: { Authorization: `Bearer ${ACCESS_TOKEN}` }
-        }
-      );
-
-      const itens = detalhe.data.data.itens;
-
-      // 🔥 Aqui você vai colocar a lógica de estoque depois
-
-      console.log("Itens:", itens);
-    }
-
-    res.json({ status: "processamento finalizado" });
+    res.json({ status: "ok" });
 
   } catch (error) {
+    console.error("Erro:");
     console.error(error.response?.data || error.message);
-    res.status(500).json({ erro: "falha no processamento" });
+
+    res.json({ erro: "falha na requisição" });
   }
+});
+
+app.get("/", (req, res) => {
+  res.send("API rodando 🚀");
+});
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Servidor rodando");
 });
