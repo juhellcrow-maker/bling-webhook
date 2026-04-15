@@ -1,5 +1,6 @@
 import express from "express";
 import axios from "axios";
+import fs from "fs"; 
 
 const app = express();
 app.use(express.json());
@@ -8,11 +9,43 @@ app.use(express.json());
  * 🔐 CONFIG (RECOMENDADO usar ENV no Render depois)
  */
 let ACCESS_TOKEN = "b804763144274df39d70887279025d4dd6293047";
-const REFRESH_TOKEN = "feae48a9a024a912ff5d3c767b14bf73cdbde104";
+let REFRESH_TOKEN = "feae48a9a024a912ff5d3c767b14bf73cdbde104";
 
 const CLIENT_ID = "3ce0ca5a754902d36bd3c27fd0be1f49f0790b3c";
 const CLIENT_SECRET = "105e48387b6fb4a2398566768cd529d9a9df30c78ad4161df0454e00879d";
 
+
+/**
+ * 📥 LER TOKEN
+ */
+function carregarToken() {
+  try {
+    const data = fs.readFileSync("token.json");
+    const json = JSON.parse(data);
+
+    ACCESS_TOKEN = json.access_token;
+    REFRESH_TOKEN = json.refresh_token;
+
+    console.log("🔐 Token carregado do arquivo");
+
+  } catch (err) {
+    console.log("⚠️ Nenhum token salvo ainda");
+  }
+}
+
+/**
+ * 💾 SALVAR TOKEN
+ */
+function salvarToken(access, refresh) {
+  const data = {
+    access_token: access,
+    refresh_token: refresh
+  };
+
+  fs.writeFileSync("token.json", JSON.stringify(data, null, 2));
+
+  console.log("💾 Token salvo");
+}
 /**
  * 🔧 HEADERS PADRÃO
  */
