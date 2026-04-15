@@ -106,7 +106,7 @@ app.get("/refresh-token", async (req, res) => {
     params.append("grant_type", "refresh_token");
     params.append("refresh_token", "26d97a62308b5dd91105282a6a134a8513bd9a4c");
     params.append("client_id", "3ce0ca5a754902d36bd3c27fd0be1f49f0790b3c");
-    params.append("client_secret", "SEU_CLIENT_SECRET");
+    params.append("client_secret", "105e48387b6fb4a2398566768cd529d9a9df30c78ad4161df0454e00879d");
 
     const response = await axios.post(
       "https://developer.bling.com.br/api/bling/oauth/token",
