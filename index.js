@@ -186,3 +186,52 @@ app.get("/pedido-debug", async (req, res) => {
     });
   }
 });
+//Processar Pedidos ML Matriz - Passalacqua Ribeirao
+app.get("/processar-pedidos", async (req, res) => {
+  try {
+    const response = await axios.get(
+      "https://api.bling.com.br/Api/v3/pedidos/vendas?pagina=1&limite=20",
+      {
+        headers: {
+          Authorization: `Bearer ${ACCESS_TOKEN}`,
+          Accept: "application/json"
+        }
+      }
+    );
+
+    const pedidos = response.data.data;
+
+    for (const pedido of pedidos) {
+      const numeroLoja = pedido.numeroLoja;
+      const lojaId = pedido.loja?.id;
+      const unidade = pedido.loja?.unidadeNegocio?.id;
+      const statusAtual = pedido.situacao?.id;
+
+      if (
+        numeroLoja === "2000015994887884" &&
+        lojaId === 204560827 &&
+        unidade === 2557723 &&
+        statusAtual === 6
+      ) {
+        await axios.patch(
+          `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/462966`,
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${ACCESS_TOKEN}`,
+              Accept: "application/json"
+            }
+          }
+        );
+
+        console.log(`Pedido ${pedido.id} enviado para Passalacqua`);
+      }
+    }
+
+    res.json({ ok: true });
+
+  } catch (error) {
+    console.error(error.response?.data || error.message);
+    res.json({ erro: true });
+  }
+});
