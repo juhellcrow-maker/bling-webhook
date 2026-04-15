@@ -47,23 +47,28 @@ app.get("/callback", async (req, res) => {
 app.get("/teste-bling", async (req, res) => {
   try {
     const response = await axios.get(
-      "https://api.bling.com.br/Api/v3/produtos",
+      "https://api.bling.com.br/Api/v3/produtos?pagina=1&limite=10",
       {
         headers: {
-          Authorization: `Bearer ${ACCESS_TOKEN}`
+          Authorization: `Bearer ${ACCESS_TOKEN}`,
+          Accept: "application/json"
         }
       }
     );
 
-    console.log(response.data);
+    return res.json(response.data);
 
-    res.json({ ok: true });
   } catch (error) {
-    console.error(error.response?.data || error.message);
-    res.json({ erro: true });
+    console.error("STATUS:", error.response?.status);
+    console.error("DATA:", error.response?.data);
+
+    return res.status(500).json({
+      erro: true,
+      status: error.response?.status,
+      detalhe: error.response?.data || error.message
+    });
   }
 });
-
 // ✅ SERVIDOR
 app.listen(process.env.PORT || 3000, () => {
   console.log("Servidor rodando");
