@@ -151,3 +151,31 @@ app.get("/pedidos-abertos", async (req, res) => {
     });
   }
 });
+//consultar pedido completo
+app.get("/pedido-debug", async (req, res) => {
+  try {
+    const idPedido = 25574418398;
+
+    const response = await axios.get(
+      `https://api.bling.com.br/Api/v3/pedidos/vendas/${idPedido}`,
+      {
+        headers: {
+          Authorization: `Bearer ${ACCESS_TOKEN}`,
+          Accept: "application/json"
+        }
+      }
+    );
+
+    console.log("PEDIDO COMPLETO:", JSON.stringify(response.data, null, 2));
+
+    return res.json(response.data);
+
+  } catch (error) {
+    console.error("ERRO:", error.response?.data || error.message);
+
+    return res.status(500).json({
+      erro: true,
+      detalhe: error.response?.data || error.message
+    });
+  }
+});
