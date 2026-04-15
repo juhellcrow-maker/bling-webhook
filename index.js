@@ -190,7 +190,7 @@ app.get("/pedido-debug", async (req, res) => {
 app.get("/processar-pedidos", async (req, res) => {
   try {
     const response = await axios.get(
-      "https://api.bling.com.br/Api/v3/pedidos/vendas?pagina=1&limite=20",
+      "https://api.bling.com.br/Api/v3/pedidos/vendas?situacao=6&pagina=1&limite=20",
       {
         headers: {
           Authorization: `Bearer ${ACCESS_TOKEN}`,
@@ -201,18 +201,24 @@ app.get("/processar-pedidos", async (req, res) => {
 
     const pedidos = response.data.data;
 
+    console.log("TOTAL DE PEDIDOS:", pedidos.length);
+
     for (const pedido of pedidos) {
-      const numeroLoja = pedido.numeroLoja;
-      const lojaId = pedido.loja?.id;
-      const unidade = pedido.loja?.unidadeNegocio?.id;
-      const statusAtual = pedido.situacao?.id;
+      console.log({
+        id: pedido.id,
+        numeroLoja: pedido.numeroLoja,
+        lojaId: pedido.loja?.id,
+        unidade: pedido.loja?.unidadeNegocio?.id,
+        status: pedido.situacao?.id
+      });
 
       if (
-        numeroLoja === "2000015994887884" &&
-        lojaId === 204560827 &&
-        unidade === 2557723 &&
-        statusAtual === 6
+        pedido.loja?.id === 204560827 &&
+        pedido.loja?.unidadeNegocio?.id === 2557723 &&
+        pedido.situacao?.id === 6
       ) {
+        console.log("✅ VAI ATUALIZAR:", pedido.id);
+
         await axios.patch(
           `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/462966`,
           {},
@@ -223,14 +229,6 @@ app.get("/processar-pedidos", async (req, res) => {
             }
           }
         );
-
-       console.log({
-  id: pedido.id,
-  numeroLoja: pedido.numeroLoja,
-  lojaId: pedido.loja?.id,
-  unidade: pedido.loja?.unidadeNegocio?.id,
-  status: pedido.situacao?.id
-});
       }
     }
 
