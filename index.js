@@ -19,7 +19,7 @@ app.get("/callback", async (req, res) => {
     params.append("code", code);
     params.append("redirect_uri", "https://bling-webhook.onrender.com/callback");
     params.append("client_id", "3ce0ca5a754902d36bd3c27fd0be1f49f0790b3c");
-    params.append("client_secret", "SEU_CLIENT_SECRET");
+    params.append("client_secret", "105e48387b6fb4a2398566768cd529d9a9df30c78ad4161df0454e00879d");
 
     const response = await axios.post(
       "https://developer.bling.com.br/api/bling/oauth/token",
