@@ -224,7 +224,13 @@ app.get("/processar-pedidos", async (req, res) => {
           }
         );
 
-        console.log(`Pedido ${pedido.id} enviado para Passalacqua`);
+       console.log({
+  id: pedido.id,
+  numeroLoja: pedido.numeroLoja,
+  lojaId: pedido.loja?.id,
+  unidade: pedido.loja?.unidadeNegocio?.id,
+  status: pedido.situacao?.id
+});
       }
     }
 
