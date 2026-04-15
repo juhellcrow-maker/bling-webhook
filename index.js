@@ -226,8 +226,8 @@ app.get("/processar-pedidos", async (req, res) => {
  */
 carregarToken();
 processarPedidos();
-setInterval(processarPedidos, 60000);
-setInterval(atualizarToken, 5 * 60 * 60 * 1000);
+setInterval(processarPedidos, 180000);
+setInterval(atualizarToken, 30 * 60 * 60 * 1000); // atualiza a cada 30 minutos
 
 /**
  * 🚀 SERVIDOR
