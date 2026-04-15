@@ -1,6 +1,7 @@
 import express from "express";
 import axios from "axios";
 import fs from "fs"; 
+import REGRAS_ML_MATRIZ from "./regras_ml_matriz.js";
 
 const app = express();
 app.use(express.json());
@@ -124,6 +125,20 @@ app.get("/pedidos-abertos", async (req, res) => {
   }
 });
 
+// - Função Regras ML Matriz
+
+function encontrarRegra(pedido) {
+  const lojaId = pedido.loja?.id;
+  const unidade = pedido.loja?.unidadeNegocio?.id;
+  const status = pedido.situacao?.id;
+
+  return REGRAS_ML_MATRIZ.find(regra =>
+    regra.lojaId === lojaId &&
+    regra.statusOrigem === status &&
+    regra.unidades.includes(unidade)
+  );
+}
+
 /**
  * 🚀 PROCESSAR PEDIDOS AUTOMATICAMENTE
  */
@@ -153,39 +168,19 @@ async function processarPedidos() {
         status
       });
 
-      // 🔒 Só entra se for ML matriz e status aberto
-      if (lojaId === 204560827 && status === 6) {
+      const regra = encontrarRegra(pedido);
+//Busca Regra ML Matriz
+if (regra) {
+  console.log(`✅ ${regra.nome}:`, pedido.id);
 
-        // 🔹 PASSALACQUA Ribeirao Preto
-        if (unidade === 2557723) {
-          console.log("✅ PASSALACQUA:", pedido.id);
+  await axios.patch(
+    `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/${regra.statusDestino}`,
+    {},
+    { headers: getHeaders() }
+  );
 
-          await axios.patch(
-            `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/462966`,
-            {},
-            { headers: getHeaders() }
-          );
-
-          atualizados++;
-          continue; // evita cair em outra regra
-        }
-
-        // 🔹 Serv-Seg Rio Preto
-        if (unidade === 2532043 || unidade === 2803281) {
-          console.log("✅ FORNECEDOR 2:", pedido.id);
-
-          await axios.patch(
-            `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/462097`,
-            {},
-            { headers: getHeaders() }
-          );
-
-          atualizados++;
-          continue;
-        }
-
-      }
-    }
+  atualizados++;
+}
 
     console.log("🎯 TOTAL ATUALIZADOS:", atualizados);
 
