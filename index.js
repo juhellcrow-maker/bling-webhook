@@ -99,3 +99,47 @@ app.get("/refresh-token", async (req, res) => {
     res.json({ erro: "falha ao atualizar token" });
   }
 });
+// Consulta Pedidos Bling
+app.get("/pedidos-abertos", async (req, res) => {
+  try {
+    const response = await axios.get(
+      "https://api.bling.com.br/Api/v3/pedidos/vendas?situacao=1",
+      {
+        headers: {
+          Authorization: `Bearer ${ACCESS_TOKEN}`,
+          Accept: "application/json"
+        }
+      }
+    );
+
+    const pedidos = response.data.data;
+
+    const resultado = pedidos.map(pedido => {
+      return {
+        id: pedido.id,
+        numero: pedido.numero,
+        data: pedido.data,
+        itens: pedido.itens.map(item => ({
+          produto: item.descricao,
+          codigo: item.codigo,
+          quantidade: item.quantidade,
+          valor: item.valor
+        }))
+      };
+    });
+
+    return res.json({
+      ok: true,
+      total: resultado.length,
+      pedidos: resultado
+    });
+
+  } catch (error) {
+    console.error("ERRO:", error.response?.data || error.message);
+
+    return res.status(500).json({
+      erro: true,
+      detalhe: error.response?.data || error.message
+    });
+  }
+});
