@@ -154,7 +154,14 @@ app.get("/pedidos-abertos", async (req, res) => {
 //consultar pedido completo
 app.get("/pedido-debug", async (req, res) => {
   try {
-    const idPedido = 25572976591;
+    const idPedido = req.query.id;
+
+    if (!idPedido) {
+      return res.json({
+        erro: true,
+        mensagem: "Você precisa passar o id do pedido. Ex: /pedido-debug?id=123"
+      });
+    }
 
     const response = await axios.get(
       `https://api.bling.com.br/Api/v3/pedidos/vendas/${idPedido}`,
@@ -166,12 +173,12 @@ app.get("/pedido-debug", async (req, res) => {
       }
     );
 
-    console.log("PEDIDO COMPLETO:", JSON.stringify(response.data, null, 2));
+    console.log(JSON.stringify(response.data, null, 2));
 
     return res.json(response.data);
 
   } catch (error) {
-    console.error("ERRO:", error.response?.data || error.message);
+    console.error(error.response?.data || error.message);
 
     return res.status(500).json({
       erro: true,
