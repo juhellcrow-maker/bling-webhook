@@ -51,6 +51,22 @@ function salvarToken(access, refresh) {
   console.log("💾 Token salvo");
 }
 
+//CallBack
+app.get("/callback", async (req, res) => {
+  try {
+    const code = req.query.code;
+
+    if (!code) {
+      return res.send("Nenhum code recebido");
+    }
+
+    res.json({ ok: true, code });
+
+  } catch (error) {
+    res.json({ erro: true });
+  }
+});
+
 /**
  * 🔧 HEADERS
  */
