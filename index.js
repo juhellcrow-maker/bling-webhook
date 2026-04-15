@@ -1,6 +1,6 @@
 import express from "express";
 import axios from "axios";
-import fs from "fs"; 
+import fs from "fs";
 import REGRAS_ML_MATRIZ from "./regras_ml_matriz.js";
 
 const app = express();
@@ -15,9 +15,8 @@ let REFRESH_TOKEN = "feae48a9a024a912ff5d3c767b14bf73cdbde104";
 const CLIENT_ID = "3ce0ca5a754902d36bd3c27fd0be1f49f0790b3c";
 const CLIENT_SECRET = "105e48387b6fb4a2398566768cd529d9a9df30c78ad4161df0454e00879d";
 
-
 /**
- * 📥 LER TOKEN
+ * 📥 CARREGAR TOKEN
  */
 function carregarToken() {
   try {
@@ -27,10 +26,9 @@ function carregarToken() {
     ACCESS_TOKEN = json.access_token;
     REFRESH_TOKEN = json.refresh_token;
 
-    console.log("🔐 Token carregado do arquivo");
-
-  } catch (err) {
-    console.log("⚠️ Nenhum token salvo ainda");
+    console.log("🔐 Token carregado");
+  } catch {
+    console.log("⚠️ Sem token salvo");
   }
 }
 
@@ -38,17 +36,23 @@ function carregarToken() {
  * 💾 SALVAR TOKEN
  */
 function salvarToken(access, refresh) {
-  const data = {
-    access_token: access,
-    refresh_token: refresh
-  };
-
-  fs.writeFileSync("token.json", JSON.stringify(data, null, 2));
+  fs.writeFileSync(
+    "token.json",
+    JSON.stringify(
+      {
+        access_token: access,
+        refresh_token: refresh
+      },
+      null,
+      2
+    )
+  );
 
   console.log("💾 Token salvo");
 }
+
 /**
- * 🔧 HEADERS PADRÃO
+ * 🔧 HEADERS
  */
 function getHeaders() {
   return {
@@ -58,7 +62,7 @@ function getHeaders() {
 }
 
 /**
- * 🔄 ATUALIZAR TOKEN AUTOMATICAMENTE
+ * 🔄 ATUALIZAR TOKEN
  */
 async function atualizarToken() {
   try {
@@ -78,55 +82,21 @@ async function atualizarToken() {
       }
     );
 
-   ACCESS_TOKEN = response.data.access_token;
-  REFRESH_TOKEN = response.data.refresh_token;
+    ACCESS_TOKEN = response.data.access_token;
+    REFRESH_TOKEN = response.data.refresh_token;
 
-  salvarToken(ACCESS_TOKEN, REFRESH_TOKEN);
+    salvarToken(ACCESS_TOKEN, REFRESH_TOKEN);
 
-  console.log("🔄 TOKEN ATUALIZADO E SALVO");;
-  
+    console.log("🔄 Token atualizado");
+
   } catch (error) {
-    console.error("❌ ERRO AO ATUALIZAR TOKEN:", error.response?.data || error.message);
+    console.error("❌ Erro ao atualizar token:", error.response?.data || error.message);
   }
 }
 
 /**
- * 📦 PEDIDOS EM ABERTO
+ * 🧠 MOTOR DE REGRAS
  */
-app.get("/pedidos-abertos", async (req, res) => {
-  try {
-    const response = await axios.get(
-      "https://api.bling.com.br/Api/v3/pedidos/vendas?situacao=6&pagina=1&limite=20",
-      { headers: getHeaders() }
-    );
-
-    const pedidos = response.data.data || [];
-
-    const resultado = pedidos.map(p => ({
-      id: p.id,
-      numero: p.numero,
-      numeroLoja: p.numeroLoja,
-      lojaId: p.loja?.id,
-      unidade: p.loja?.unidadeNegocio?.id,
-      status: p.situacao?.id
-    }));
-
-    return res.json({
-      ok: true,
-      total: resultado.length,
-      pedidos: resultado
-    });
-
-  } catch (error) {
-    return res.status(500).json({
-      erro: true,
-      detalhe: error.response?.data || error.message
-    });
-  }
-});
-
-// - Função Regras ML Matriz
-
 function encontrarRegra(pedido) {
   const lojaId = pedido.loja?.id;
   const unidade = pedido.loja?.unidadeNegocio?.id;
@@ -140,7 +110,7 @@ function encontrarRegra(pedido) {
 }
 
 /**
- * 🚀 PROCESSAR PEDIDOS AUTOMATICAMENTE
+ * 🚀 PROCESSAR PEDIDOS
  */
 async function processarPedidos() {
   try {
@@ -152,140 +122,91 @@ async function processarPedidos() {
     const pedidos = response.data.data || [];
 
     console.log("🔄 Rodando automação...");
-    console.log("TOTAL DE PEDIDOS:", pedidos.length);
+    console.log("TOTAL:", pedidos.length);
 
     let atualizados = 0;
 
     for (const pedido of pedidos) {
-      const lojaId = pedido.loja?.id;
-      const unidade = pedido.loja?.unidadeNegocio?.id;
-      const status = pedido.situacao?.id;
+
+      // 🔎 BUSCA DETALHE COMPLETO
+      const detalhe = await axios.get(
+        `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`,
+        { headers: getHeaders() }
+      );
+
+      const pedidoCompleto = detalhe.data.data;
 
       console.log({
-        id: pedido.id,
-        lojaId,
-        unidade,
-        status
+        id: pedidoCompleto.id,
+        lojaId: pedidoCompleto.loja?.id,
+        unidade: pedidoCompleto.loja?.unidadeNegocio?.id,
+        status: pedidoCompleto.situacao?.id
       });
 
-      const regra = encontrarRegra(pedido);
-//Busca Regra ML Matriz
-if (regra) {
-  console.log(`✅ ${regra.nome}:`, pedido.id);
+      const regra = encontrarRegra(pedidoCompleto);
 
-  await axios.patch(
-    `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/${regra.statusDestino}`,
-    {},
-    { headers: getHeaders() }
-  );
+      if (regra) {
+        console.log(`✅ ${regra.nome}:`, pedidoCompleto.id);
 
-  atualizados++;
-}
+        await axios.patch(
+          `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoCompleto.id}/situacoes/${regra.statusDestino}`,
+          {},
+          { headers: getHeaders() }
+        );
+
+        atualizados++;
+      }
+    }
 
     console.log("🎯 TOTAL ATUALIZADOS:", atualizados);
 
   } catch (error) {
-    console.error("❌ ERRO NA AUTOMAÇÃO:", error.response?.data || error.message);
+    console.error("❌ ERRO:", error.response?.data || error.message);
 
-    // 🔁 TOKEN EXPIRADO
     if (error.response?.status === 401) {
-      console.log("🔁 TOKEN EXPIRADO, ATUALIZANDO...");
-
+      console.log("🔁 Token expirado...");
       await atualizarToken();
-
-      console.log("🔄 REPROCESSANDO APÓS TOKEN NOVO...");
-
       return processarPedidos();
     }
   }
 }
 
 /**
- * 🔗 CALLBACK OAUTH
+ * 📦 PEDIDOS ABERTOS (DEBUG)
  */
-app.get("/callback", async (req, res) => {
-  try {
-    const code = req.query.code;
-
-    if (!code) {
-      return res.send("Nenhum code recebido");
-    }
-
-    const params = new URLSearchParams();
-    params.append("grant_type", "authorization_code");
-    params.append("code", code);
-    params.append("redirect_uri", "https://bling-webhook.onrender.com/callback");
-    params.append("client_id", CLIENT_ID);
-    params.append("client_secret", CLIENT_SECRET);
-
-    const response = await axios.post(
-      "https://developer.bling.com.br/api/bling/oauth/token",
-      params,
-      {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded"
-        }
-      }
-    );
-
-    ACCESS_TOKEN = response.data.access_token;
-    REFRESH_TOKEN = response.data.refresh_token;
-
-    salvarToken(ACCESS_TOKEN, REFRESH_TOKEN);
-
-    console.log("🔐 TOKEN GERADO:", response.data);
-
-    res.json(response.data);
-
-  } catch (error) {
-    console.error("❌ ERRO:", error.response?.data || error.message);
-    res.json({ erro: "falha ao gerar token" });
-  }
-});
-
-/**
- * 🧪 TESTE API BLING
- */
-app.get("/teste-bling", async (req, res) => {
+app.get("/pedidos-abertos", async (req, res) => {
   try {
     const response = await axios.get(
-      "https://api.bling.com.br/Api/v3/produtos?pagina=1&limite=10",
+      "https://api.bling.com.br/Api/v3/pedidos/vendas?situacao=6&pagina=1&limite=10",
       { headers: getHeaders() }
     );
 
-    return res.json(response.data);
+    const pedidos = response.data.data || [];
 
-  } catch (error) {
-    return res.status(500).json({
-      erro: true,
-      detalhe: error.response?.data || error.message
-    });
-  }
-});
+    const resultado = [];
 
-/**
- * 🔍 CONSULTAR PEDIDO COMPLETO
- */
-app.get("/pedido-debug", async (req, res) => {
-  try {
-    const idPedido = req.query.id;
+    for (const pedido of pedidos) {
+      const detalhe = await axios.get(
+        `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`,
+        { headers: getHeaders() }
+      );
 
-    if (!idPedido) {
-      return res.json({
-        erro: true,
-        mensagem: "Use: /pedido-debug?id=123"
+      const p = detalhe.data.data;
+
+      resultado.push({
+        id: p.id,
+        numero: p.numero,
+        numeroLoja: p.numeroLoja,
+        lojaId: p.loja?.id,
+        unidade: p.loja?.unidadeNegocio?.id,
+        status: p.situacao?.id
       });
     }
 
-    const response = await axios.get(
-      `https://api.bling.com.br/Api/v3/pedidos/vendas/${idPedido}`,
-      { headers: getHeaders() }
-    );
-
-    return res.json(response.data);
+    res.json({ ok: true, pedidos: resultado });
 
   } catch (error) {
-    return res.status(500).json({
+    res.status(500).json({
       erro: true,
       detalhe: error.response?.data || error.message
     });
@@ -293,7 +214,7 @@ app.get("/pedido-debug", async (req, res) => {
 });
 
 /**
- * 🔧 EXECUÇÃO MANUAL (opcional)
+ * 🔧 EXECUÇÃO MANUAL
  */
 app.get("/processar-pedidos", async (req, res) => {
   await processarPedidos();
@@ -301,16 +222,11 @@ app.get("/processar-pedidos", async (req, res) => {
 });
 
 /**
- * 🤖 AUTOMAÇÃO (RODA SOZINHO)
+ * 🤖 AUTOMAÇÃO
  */
-
-// roda ao iniciar
+carregarToken();
 processarPedidos();
-
-// roda a cada 1 minuto
 setInterval(processarPedidos, 60000);
-
-// tenta renovar token a cada 5 horas
 setInterval(atualizarToken, 5 * 60 * 60 * 1000);
 
 /**
