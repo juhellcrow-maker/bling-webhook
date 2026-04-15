@@ -153,20 +153,37 @@ async function processarPedidos() {
         status
       });
 
-      if (
-        lojaId === 204560827 &&
-        unidade === 2557723 &&
-        status === 6
-      ) {
-        console.log("✅ ATUALIZANDO:", pedido.id);
+      // 🔒 Só entra se for ML matriz e status aberto
+      if (lojaId === 204560827 && status === 6) {
 
-        await axios.patch(
-          `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/462966`,
-          {},
-          { headers: getHeaders() }
-        );
+        // 🔹 PASSALACQUA Ribeirao Preto
+        if (unidade === 2557723) {
+          console.log("✅ PASSALACQUA:", pedido.id);
 
-        atualizados++;
+          await axios.patch(
+            `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/462966`,
+            {},
+            { headers: getHeaders() }
+          );
+
+          atualizados++;
+          continue; // evita cair em outra regra
+        }
+
+        // 🔹 Serv-Seg Rio Preto
+        if (unidade === 2532043 || unidade === 2803281) {
+          console.log("✅ FORNECEDOR 2:", pedido.id);
+
+          await axios.patch(
+            `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/462097`,
+            {},
+            { headers: getHeaders() }
+          );
+
+          atualizados++;
+          continue;
+        }
+
       }
     }
 
@@ -175,6 +192,7 @@ async function processarPedidos() {
   } catch (error) {
     console.error("❌ ERRO NA AUTOMAÇÃO:", error.response?.data || error.message);
 
+    // 🔁 TOKEN EXPIRADO
     if (error.response?.status === 401) {
       console.log("🔁 TOKEN EXPIRADO, ATUALIZANDO...");
 
