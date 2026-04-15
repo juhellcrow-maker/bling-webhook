@@ -31,15 +31,18 @@ app.get("/teste-bling", async (req, res) => {
 // 🔥 COLOCA AQUI (NOVO ENDPOINT)
 app.get("/gerar-token", async (req, res) => {
   try {
+    const params = new URLSearchParams();
+    params.append("grant_type", "refresh_token");
+    params.append("refresh_token", "SEU_REFRESH_TOKEN");
+    params.append("client_id", "3ce0ca5a754902d36bd3c27fd0be1f49f0790b3c");
+    params.append("client_secret", "105e48387b6fb4a2398566768cd529d9a9df30c78ad4161df0454e00879d");
+
     const response = await axios.post(
       "https://www.bling.com.br/Api/v3/oauth/token",
-      null,
+      params,
       {
-        params: {
-          grant_type: "refresh_token",
-          refresh_token: "SEU_REFRESH_TOKEN",
-          client_id: "SEU_CLIENT_ID",
-          client_secret: "SEU_CLIENT_SECRET"
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
         }
       }
     );
@@ -54,7 +57,6 @@ app.get("/gerar-token", async (req, res) => {
     res.json({ erro: "falha ao gerar token" });
   }
 });
-
 
 // ✅ SERVIDOR
 app.listen(process.env.PORT || 3000, () => {
