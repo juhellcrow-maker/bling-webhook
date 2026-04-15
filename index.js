@@ -4,16 +4,42 @@ import axios from "axios";
 const app = express();
 app.use(express.json());
 
-app.get("/callback", (req, res) => {
-  const code = req.query.code;
+app.get("/callback", async (req, res) => {
+  try {
+    const code = req.query.code;
 
-  console.log("CODE RECEBIDO:", code);
+    if (!code) {
+      return res.send("Nenhum code recebido");
+    }
 
-  res.send(`Code recebido: ${code}`);
+    console.log("CODE RECEBIDO:", code);
+
+    const params = new URLSearchParams();
+    params.append("grant_type", "authorization_code");
+    params.append("code", code);
+    params.append("redirect_uri", "https://bling-webhook.onrender.com/callback");
+    params.append("client_id", "3ce0ca5a754902d36bd3c27fd0be1f49f0790b3c");
+    params.append("client_secret", "SEU_CLIENT_SECRET");
+
+    const response = await axios.post(
+      "https://developer.bling.com.br/api/bling/oauth/token",
+      params,
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      }
+    );
+
+    console.log("TOKEN:", response.data);
+
+    res.json(response.data);
+
+  } catch (error) {
+    console.error("ERRO:", error.response?.data || error.message);
+    res.json({ erro: error.response?.data || "falha ao gerar token" });
+  }
 });
-
-const ACCESS_TOKEN = "SEU_ACCESS_TOKEN_AQUI";
-
 // ✅ SEU TESTE DO BLING
 app.get("/teste-bling", async (req, res) => {
   try {
