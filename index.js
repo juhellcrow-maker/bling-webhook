@@ -174,16 +174,14 @@ async function processarPedidos() {
   } catch (error) {
     console.error("❌ ERRO NA AUTOMAÇÃO:", error.response?.data || error.message);
 
-    // se token expirou, tenta atualizar automaticamente
     if (error.response?.status === 401) {
-  console.log("🔁 TOKEN EXPIRADO, ATUALIZANDO...");
+      console.log("🔁 TOKEN EXPIRADO, ATUALIZANDO...");
 
-  await atualizarToken();
+      await atualizarToken();
 
-  console.log("🔄 REPROCESSANDO APÓS TOKEN NOVO...");
+      console.log("🔄 REPROCESSANDO APÓS TOKEN NOVO...");
 
-  return processarPedidos(); // tenta novamente
-}
+      return processarPedidos();
     }
   }
 }
