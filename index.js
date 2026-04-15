@@ -60,10 +60,42 @@ app.get("/callback", async (req, res) => {
       return res.send("Nenhum code recebido");
     }
 
-    res.json({ ok: true, code });
+    console.log("CODE RECEBIDO:", code);
+
+    const params = new URLSearchParams();
+    params.append("grant_type", "authorization_code");
+    params.append("code", code);
+    params.append("redirect_uri", "https://bling-webhook.onrender.com/callback");
+    params.append("client_id", CLIENT_ID);
+    params.append("client_secret", CLIENT_SECRET);
+
+    const response = await axios.post(
+      "https://developer.bling.com.br/api/bling/oauth/token",
+      params,
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      }
+    );
+
+    console.log("🔐 TOKEN GERADO:", response.data);
+
+    // 👉 SALVA NO token.json
+    salvarToken(
+      response.data.access_token,
+      response.data.refresh_token
+    );
+
+    res.json(response.data);
 
   } catch (error) {
-    res.json({ erro: true });
+    console.error("❌ ERRO:", error.response?.data || error.message);
+
+    res.status(500).json({
+      erro: true,
+      detalhe: error.response?.data || error.message
+    });
   }
 });
 
