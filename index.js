@@ -90,6 +90,40 @@ async function atualizarToken() {
 }
 
 /**
+ * 📦 PEDIDOS EM ABERTO
+ */
+app.get("/pedidos-abertos", async (req, res) => {
+  try {
+    const response = await axios.get(
+      "https://api.bling.com.br/Api/v3/pedidos/vendas?situacao=6&pagina=1&limite=20",
+      { headers: getHeaders() }
+    );
+
+    const pedidos = response.data.data || [];
+
+    const resultado = pedidos.map(p => ({
+      id: p.id,
+      numeroLoja: p.numeroLoja,
+      lojaId: p.loja?.id,
+      unidade: p.loja?.unidadeNegocio?.id,
+      status: p.situacao?.id
+    }));
+
+    return res.json({
+      ok: true,
+      total: resultado.length,
+      pedidos: resultado
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      erro: true,
+      detalhe: error.response?.data || error.message
+    });
+  }
+});
+
+/**
  * 🚀 PROCESSAR PEDIDOS AUTOMATICAMENTE
  */
 async function processarPedidos() {
