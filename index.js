@@ -77,10 +77,13 @@ async function atualizarToken() {
       }
     );
 
-    ACCESS_TOKEN = response.data.access_token;
+   ACCESS_TOKEN = response.data.access_token;
+  REFRESH_TOKEN = response.data.refresh_token;
 
-    console.log("🔄 TOKEN ATUALIZADO");
+  salvarToken(ACCESS_TOKEN, REFRESH_TOKEN);
 
+  console.log("🔄 TOKEN ATUALIZADO E SALVO");;
+  
   } catch (error) {
     console.error("❌ ERRO AO ATUALIZAR TOKEN:", error.response?.data || error.message);
   }
@@ -139,8 +142,14 @@ async function processarPedidos() {
 
     // se token expirou, tenta atualizar automaticamente
     if (error.response?.status === 401) {
-      console.log("🔁 TOKEN EXPIRADO, ATUALIZANDO...");
-      await atualizarToken();
+  console.log("🔁 TOKEN EXPIRADO, ATUALIZANDO...");
+
+  await atualizarToken();
+
+  console.log("🔄 REPROCESSANDO APÓS TOKEN NOVO...");
+
+  return processarPedidos(); // tenta novamente
+}
     }
   }
 }
@@ -174,6 +183,9 @@ app.get("/callback", async (req, res) => {
     );
 
     ACCESS_TOKEN = response.data.access_token;
+    REFRESH_TOKEN = response.data.refresh_token;
+
+    salvarToken(ACCESS_TOKEN, REFRESH_TOKEN);
 
     console.log("🔐 TOKEN GERADO:", response.data);
 
