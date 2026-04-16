@@ -273,6 +273,10 @@ app.get("/debug-pedido/:numero", async (req, res) => {
 
 setInterval(atualizarToken, 90 * 60 * 1000); // 1h30
 
+
+/* ======================================================
+   🚀 SERVIDOR
+====================================================== */
 (async () => {
   try {
     console.log("🔁 Renovando token no startup...");
@@ -281,9 +285,6 @@ setInterval(atualizarToken, 90 * 60 * 1000); // 1h30
     console.error("❌ Erro ao renovar token no startup:", err.message);
   }
 })();
-/* ======================================================
-   🚀 SERVIDOR
-====================================================== */
 app.listen(process.env.PORT || 3000, () => {
   console.log("✅ Servidor rodando");
 });
