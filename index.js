@@ -5,6 +5,25 @@ import REGRAS_ML_MATRIZ from "./regras_ml_matriz.js";
 
 const app = express();
 app.use(express.json());
+//espera
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+//request seguro
+
+async function safeRequest(fn, tentativas = 3) {
+  try {
+    return await fn();
+  } catch (error) {
+    if (error.response?.status === 429 && tentativas > 0) {
+      console.log("⏳ Limite da API atingido, aguardando 10s...");
+      await delay(10000);
+      return safeRequest(fn, tentativas - 1);
+    }
+    throw error;
+  }
+}
 
 /**
  * 🔐 CONFIG (RECOMENDADO usar ENV no Render depois)
@@ -163,7 +182,7 @@ function encontrarRegra(pedido) {
 async function processarPedidos() {
   try {
     const response = await axios.get(
-      "https://api.bling.com.br/Api/v3/pedidos/vendas?situacao=6&pagina=1&limite=20",
+      "https://api.bling.com.br/Api/v3/pedidos/vendas?situacao=6&pagina=1&limite=10",
       { headers: getHeaders() }
     );
 
@@ -175,7 +194,7 @@ async function processarPedidos() {
     let atualizados = 0;
 
     for (const pedido of pedidos) {
-      await delay(500);
+      await delay(1500);
       // 🔎 BUSCA DETALHE COMPLETO
       const detalhe = await axios.get(
         `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`,
@@ -275,7 +294,7 @@ app.get("/processar-pedidos", async (req, res) => {
  */
 carregarToken();
 processarPedidos();
-setInterval(processarPedidos, 180000);
+setInterval(processarPedidos, 5 * 60 * 1000);
 setInterval(atualizarToken, 30 * 60 * 1000); // atualiza a cada 30 minutos
 
 /**
