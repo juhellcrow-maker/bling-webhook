@@ -221,13 +221,20 @@ async function processarPedidos() {
       );
 
       // 🔥 Alterar o Pedido Para Deposito Destino
-      await alterarStatusPedido(
-        pedidoCompleto.id,
-        regra.statusDestino
-      );
-    }
+     async function alterarStatusPedido(pedidoId, statusDestino) {
+  try {
+    await safeRequest(() =>
+      axios.put(
+        `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}`,
+        { situacao: statusDestino },
+        { headers: getHeaders() }
+      )
+    );
   } catch (error) {
-    console.error("❌ Erro geral:", error.response?.data || error.message);
+    console.error(
+      `❌ Erro ao alterar status do pedido ${pedidoId}:`,
+      error.response?.data || error.message
+    );
   }
 }
 /* ======================================================
