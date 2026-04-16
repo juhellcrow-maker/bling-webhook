@@ -122,7 +122,7 @@ function getHeaders() {
 
 /* ======================================================
    💾 TOKEN LOCAL (OPCIONAL)
-====================================================== */
+
 function carregarToken() {
   try {
     const json = JSON.parse(fs.readFileSync("token.json"));
@@ -140,7 +140,7 @@ function salvarToken(access, refresh) {
     JSON.stringify({ access_token: access, refresh_token: refresh }, null, 2)
   );
 }
-
+====================================================== */
 /* ======================================================
    🔄 ATUALIZAR TOKEN
 ====================================================== */
@@ -161,13 +161,12 @@ async function atualizarToken() {
     ACCESS_TOKEN = response.data.access_token;
     REFRESH_TOKEN = response.data.refresh_token;
 
-    salvarToken(ACCESS_TOKEN, REFRESH_TOKEN);
-    console.log("🔄 Token atualizado");
+    console.log("🔄 Token atualizado com sucesso");
+
   } catch (error) {
-    console.error("❌ Erro ao atualizar token:", error.response?.data || error.message);
+    console.error("❌ Falha ao atualizar token:", error.response?.data || error.message);
   }
 }
-
 /* ======================================================
    🧠 MOTOR DE REGRAS
 ====================================================== */
