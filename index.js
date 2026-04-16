@@ -26,18 +26,89 @@ function delay(ms) {
 /* ======================================================
    🛡️ REQUEST SEGURO (RATE LIMIT)
 ====================================================== */
-async function safeRequest(fn, tentativas = 3) {
+async function safeRequest(fn, tentativas = 2) {
   try {
     return await fn();
   } catch (error) {
+
+    // TOKEN INVÁLIDO → TENTAR ATUALIZAR
+    if (
+      error.response?.data?.error?.type === "invalid_token" ||
+      error.response?.status === 401
+    ) {
+      console.log("🔄 Token inválido, atualizando...");
+      await atualizarToken();
+      return fn(); // tenta novamente
+    }
+
+    // RATE LIMIT
     if (error.response?.status === 429 && tentativas > 0) {
-      console.log("⏳ Limite da API atingido, aguardando 10s...");
+      console.log("⏳ Limite da API atingido, aguardando...");
       await delay(10000);
       return safeRequest(fn, tentativas - 1);
     }
+
     throw error;
   }
 }
+
+/*============================
+CallBack
+==========================*/
+app.get("/callback", async (req, res) => {
+  try {
+    const code = req.query.code;
+
+    if (!code) {
+      return res.status(400).json({ erro: "Code não recebido do Bling" });
+    }
+
+    console.log("🔑 Code recebido, trocando por tokens...");
+
+    const params = new URLSearchParams();
+    params.append("grant_type", "authorization_code");
+    params.append("code", code);
+    params.append("client_id", CLIENT_ID);
+    params.append("client_secret", CLIENT_SECRET);
+
+    const response = await axios.post(
+      "https://developer.bling.com.br/api/bling/oauth/token",
+      params,
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      }
+    );
+
+    const { access_token, refresh_token, expires_in } = response.data;
+
+    // Atualiza tokens em memória
+    ACCESS_TOKEN = access_token;
+    REFRESH_TOKEN = refresh_token;
+
+    // Salva localmente (opcional, pode remover depois)
+    fs.writeFileSync(
+      "token.json",
+      JSON.stringify({ access_token, refresh_token }, null, 2)
+    );
+
+    console.log("✅ Tokens gerados com sucesso");
+    console.log("⏳ Expira em (segundos):", expires_in);
+
+    res.json({
+      sucesso: true,
+      mensagem: "Tokens gerados com sucesso",
+      access_token,
+      refresh_token
+    });
+
+  } catch (error) {
+    console.error("❌ Erro no callback:", error.response?.data || error.message);
+    res.status(500).json(error.response?.data || error.message);
+  }
+});
+
 
 /* ======================================================
    🔧 HEADERS
