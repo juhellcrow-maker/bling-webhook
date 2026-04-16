@@ -14,6 +14,8 @@ let REFRESH_TOKEN = process.env.REFRESH_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const SECRET_KEY = process.env.SECRET_KEY;
+const ML_MATRIZ = 204560827;
+const AMZ_FILIAL = 205415213;
 
 /* ======================================================
    ⏳ DELAY
@@ -136,13 +138,13 @@ app.post("/webhook/bling/pedidos", express.json(), async (req, res) => {
     );
 
     // ✅ Processar SOMENTE Mercado Livre
-    if (lojaId === LOJA_MERCADO_LIVRE && situacaoId === 6) {
+    if (lojaId === ML_MATRIZ && situacaoId === 6) {
       console.log(`🔵 Mercado Livre | Processando pedido ${numeroPedido}`);
       await processarPedidoPorId(idPedido);
     }
 
     // ✅ Amazon: apenas log
-    if (lojaId === LOJA_AMAZON) {
+    if (lojaId === AMZ_FILIAL) {
       console.log(`🟠 Amazon | Pedido ${numeroPedido} recebido (manual)`);
     }
 
