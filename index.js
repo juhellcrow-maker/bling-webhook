@@ -270,7 +270,7 @@ app.get("/debug-pedido/:numero", async (req, res) => {
 /* ======================================================
    🤖 AUTOMAÇÃO
 ====================================================== */
-setInterval(processarPedidos, 10 * 60 * 1000);   // 10 minutos
+//setInterval(processarPedidos, 10 * 60 * 1000);   // 10 minutos
 setInterval(atualizarToken, 90 * 60 * 1000);    // 1h30 minutos
 
 /* ======================================================
