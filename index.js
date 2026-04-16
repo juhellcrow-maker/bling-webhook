@@ -194,7 +194,7 @@ async function processarPedidos() {
     console.error(error.message);
   }
 }
-  }
+ 
 }
 
 /* ======================================================
