@@ -215,7 +215,56 @@ app.post("/webhook/bling/pedidos", async (req, res) => {
     res.sendStatus(500);
   }
 });
+/* ======================================================
+   🧪 DEBUG – BUSCA COMPLETA DE PEDIDO
+   Uso exclusivo para análise de dados reais
+   NÃO USAR EM AUTOMAÇÕES
+====================================================== */
+/* ======================================================
+   🧪 DEBUG – BUSCAR PEDIDO POR NÚMERO (APENAS PARA INSPEÇÃO)
+====================================================== */
+app.get("/debug-pedido/:numero", async (req, res) => {
+  try {
+    const numeroPedido = req.params.numero;
 
+    // 1️⃣ Buscar pedido pelo número
+    const resumo = await safeRequest(() =>
+      axios.get(
+        `https://api.bling.com.br/Api/v3/pedidos/vendas?numero=${numeroPedido}`,
+        { headers: getHeaders() }
+      )
+    );
+
+    const pedidos = resumo.data.data || [];
+
+    if (!pedidos.length) {
+      return res.status(404).json({
+        erro: `Pedido ${numeroPedido} não encontrado`
+      });
+    }
+
+    // 2️⃣ Buscar detalhe completo pelo ID
+    const detalhe = await safeRequest(() =>
+      axios.get(
+        `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidos[0].id}`,
+        { headers: getHeaders() }
+      )
+    );
+
+    // ✅ Retorna no navegador
+    res.json(detalhe.data.data);
+
+    // ✅ Loga também
+    console.log(
+      "🧾 DEBUG Pedido completo:",
+      JSON.stringify(detalhe.data.data, null, 2)
+    );
+
+  } catch (error) {
+    console.error("❌ Erro no debug-pedido:", error.message);
+    res.status(500).json({ erro: error.message });
+  }
+});
 /* ======================================================
    🤖 AUTOMAÇÃO
 ====================================================== */
