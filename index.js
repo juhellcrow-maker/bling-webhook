@@ -87,11 +87,7 @@ app.get("/callback", async (req, res) => {
     ACCESS_TOKEN = access_token;
     REFRESH_TOKEN = refresh_token;
 
-    // Salva localmente (opcional, pode remover depois)
-    fs.writeFileSync(
-      "token.json",
-      JSON.stringify({ access_token, refresh_token }, null, 2)
-    );
+    
 
     console.log("✅ Tokens gerados com sucesso");
     console.log("⏳ Expira em (segundos):", expires_in);
