@@ -96,20 +96,20 @@ function encontrarRegra(pedido) {
 ====================================================== */
 async function alterarStatusPedido(pedidoId, numeroPedido, statusDestino) {
   console.log(
-    `🔄 Alterando Pedido Nº ${numeroPedido} → Status ${statusDestino}`
+    `🔄 Alterando Pedido Nº ${numeroPedido} → Situação ${statusDestino}`
   );
 
   await safeRequest(() =>
-    axios.put(
-      `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}/situacao`,
-      { situacao: statusDestino },
+    axios.patch(
+      `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}/situacoes/${statusDestino}`,
+      null, // body vazio (PATCH não exige payload)
       { headers: getHeaders() }
     )
   );
 
   console.log(`✅ Pedido Nº ${numeroPedido} atualizado com sucesso`);
 }
-
+``
 /* ======================================================
    🚀 PROCESSAR PEDIDOS (COM PAGINAÇÃO)
 ====================================================== */
