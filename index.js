@@ -9,8 +9,8 @@ app.use(express.json());
 /**
  * 🔐 CONFIG (RECOMENDADO usar ENV no Render depois)
  */
-let ACCESS_TOKEN = "a6c53299a95507d786be2384b9212f98017d9702";
-let REFRESH_TOKEN = "94eabda0fca7bfc37802ff62064d452cc87178eb";
+let ACCESS_TOKEN = "ff395d0ca9802ea1bb49b5413385c85b20c1d448";
+let REFRESH_TOKEN = "cb6b6e69e1556c84833db003fe76c5aba05ffbf3";
 
 const CLIENT_ID = "3ce0ca5a754902d36bd3c27fd0be1f49f0790b3c";
 const CLIENT_SECRET = "105e48387b6fb4a2398566768cd529d9a9df30c78ad4161df0454e00879d";
@@ -175,7 +175,7 @@ async function processarPedidos() {
     let atualizados = 0;
 
     for (const pedido of pedidos) {
-
+      await delay(500);
       // 🔎 BUSCA DETALHE COMPLETO
       const detalhe = await axios.get(
         `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`,
@@ -234,6 +234,7 @@ app.get("/pedidos-abertos", async (req, res) => {
     const resultado = [];
 
     for (const pedido of pedidos) {
+      await delay(500);
       const detalhe = await axios.get(
         `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`,
         { headers: getHeaders() }
@@ -275,7 +276,7 @@ app.get("/processar-pedidos", async (req, res) => {
 carregarToken();
 processarPedidos();
 setInterval(processarPedidos, 180000);
-setInterval(atualizarToken, 30 * 60 * 60 * 1000); // atualiza a cada 30 minutos
+setInterval(atualizarToken, 30 * 60 * 1000); // atualiza a cada 30 minutos
 
 /**
  * 🚀 SERVIDOR
