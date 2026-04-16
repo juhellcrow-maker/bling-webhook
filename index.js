@@ -10,8 +10,6 @@ app.use(express.json());
 ====================================================== */
 let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 let REFRESH_TOKEN = process.env.REFRESH_TOKEN;
-let tokenRefreshing = false;
-let tokenRefreshPromise = null;
 
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
@@ -19,6 +17,12 @@ const CLIENT_SECRET = process.env.CLIENT_SECRET;
 // Lojas
 const ML_MATRIZ = 204560827;
 const AMZ_FILIAL = 205415213;
+
+/* ======================================================
+   🔄 CONTROLE DE TOKEN (LOCK GLOBAL)
+====================================================== */
+let tokenRefreshing = false;
+let tokenRefreshPromise = null;
 
 /* ======================================================
    ⏳ UTIL
@@ -35,10 +39,9 @@ function getHeaders() {
 }
 
 /* ======================================================
-   🔄 TOKEN
+   🔄 ATUALIZAR TOKEN (COM LOCK)
 ====================================================== */
 async function atualizarToken() {
-  // ✅ Se já está renovando, aguarda
   if (tokenRefreshing && tokenRefreshPromise) {
     console.log("⏳ Aguardando refresh de token em andamento...");
     await tokenRefreshPromise;
@@ -65,12 +68,9 @@ async function atualizarToken() {
       REFRESH_TOKEN = response.data.refresh_token;
 
       console.log("✅ Token atualizado com sucesso");
-    } catch (error) {
-      console.error(
-        "❌ Falha ao atualizar token:",
-        error.response?.data || error.message
-      );
-      throw error;
+    } catch (err) {
+      console.error("❌ Falha ao atualizar token:", err.response?.data || err.message);
+      throw err;
     } finally {
       tokenRefreshing = false;
       tokenRefreshPromise = null;
@@ -79,15 +79,16 @@ async function atualizarToken() {
 
   await tokenRefreshPromise;
 }
+
 /* ======================================================
-   🛡️ SAFE REQUEST
+   🛡️ REQUEST SEGURO (RETRY + RATE LIMIT)
 ====================================================== */
 async function safeRequest(fn, tentativas = 3) {
   try {
     return await fn();
   } catch (error) {
 
-    // 🔄 TOKEN EXPIRADO OU TRANSITÓRIO
+    // 🔄 TOKEN INVÁLIDO OU TRANSITÓRIO
     if (
       error.response?.status === 401 ||
       error.response?.data?.error?.type === "invalid_token"
@@ -102,7 +103,7 @@ async function safeRequest(fn, tentativas = 3) {
 
     // ⏳ RATE LIMIT
     if (error.response?.status === 429 && tentativas > 0) {
-      console.log("⏳ Rate limit, aguardando...");
+      console.log("⏳ Rate limit atingido, aguardando...");
       await delay(10000);
       return safeRequest(fn, tentativas - 1);
     }
@@ -123,12 +124,10 @@ function encontrarRegra(pedido) {
 }
 
 /* ======================================================
-   🔁 ALTERAR STATUS
+   🔁 ALTERAR STATUS DO PEDIDO
 ====================================================== */
 async function alterarStatusPedido(pedidoId, numeroPedido, statusDestino) {
-  console.log(
-    `🔄 Alterando Pedido Nº ${numeroPedido} → Situação ${statusDestino}`
-  );
+  console.log(`🔄 Alterando Pedido Nº ${numeroPedido} → Situação ${statusDestino}`);
 
   await safeRequest(() =>
     axios.patch(
@@ -142,7 +141,7 @@ async function alterarStatusPedido(pedidoId, numeroPedido, statusDestino) {
 }
 
 /* ======================================================
-   ⚙️ PROCESSAR PEDIDO (POR ID – VIA WEBHOOK)
+   ⚙️ PROCESSAR PEDIDO (INDIVIDUAL)
 ====================================================== */
 async function processarPedidoPorId(idPedido) {
   const detalhe = await safeRequest(() =>
@@ -154,11 +153,8 @@ async function processarPedidoPorId(idPedido) {
 
   const pedido = detalhe.data.data;
 
-  console.log(
-    `🔍 Processando Pedido Nº ${pedido.numero} | Loja ${pedido.loja?.id}`
-  );
+  console.log(`🔍 Processando Pedido Nº ${pedido.numero} | Loja ${pedido.loja?.id}`);
 
-  // Garantias
   if (pedido.loja?.id !== ML_MATRIZ) return;
   if (pedido.situacao?.id !== 6) return;
 
@@ -169,9 +165,7 @@ async function processarPedidoPorId(idPedido) {
     return;
   }
 
-  console.log(
-    `✅ Regra "${regra.nome}" aplicada ao Pedido ${pedido.numero}`
-  );
+  console.log(`✅ Regra "${regra.nome}" aplicada ao Pedido ${pedido.numero}`);
 
   await alterarStatusPedido(
     pedido.id,
@@ -181,14 +175,38 @@ async function processarPedidoPorId(idPedido) {
 }
 
 /* ======================================================
+   📦 FILA DE PROCESSAMENTO (ANTI CONCORRÊNCIA)
+====================================================== */
+const filaPedidos = [];
+let processandoFila = false;
+
+async function processarFila() {
+  if (processandoFila) return;
+
+  processandoFila = true;
+
+  while (filaPedidos.length > 0) {
+    const idPedido = filaPedidos.shift();
+
+    try {
+      await processarPedidoPorId(idPedido);
+    } catch (err) {
+      console.error("❌ Erro ao processar pedido da fila:", err.message);
+    }
+
+    // ✅ delay para respeitar rate limit do Bling
+    await delay(800);
+  }
+
+  processandoFila = false;
+}
+
+/* ======================================================
    📣 WEBHOOK BLING – PEDIDOS
 ====================================================== */
 app.post("/webhook/bling/pedidos", async (req, res) => {
   try {
     const evento = req.body;
-
-    console.log("📣 Webhook do Bling recebido:");
-    console.log(JSON.stringify(evento, null, 2));
 
     const tipoEvento = evento.event;
     const idPedido = evento.data?.id;
@@ -200,19 +218,16 @@ app.post("/webhook/bling/pedidos", async (req, res) => {
       `➡️ Evento: ${tipoEvento} | Pedido Nº ${numeroPedido} | Loja ${lojaId} | Status ${situacaoId}`
     );
 
-    // ✅ Mercado Livre Matriz – processamento automático
     if (lojaId === ML_MATRIZ && situacaoId === 6) {
-      console.log(
-        `🔵 Mercado Livre Matriz | Processando pedido ${numeroPedido}`
-      );
-      await processarPedidoPorId(idPedido);
+      if (!filaPedidos.includes(idPedido)) {
+        filaPedidos.push(idPedido);
+        console.log(`📥 Pedido ${numeroPedido} enfileirado`);
+      }
+      processarFila();
     }
 
-    // ✅ Amazon Filial – manual (por enquanto)
     if (lojaId === AMZ_FILIAL) {
-      console.log(
-        `🟠 Amazon Filial | Pedido ${numeroPedido} recebido (manual)`
-      );
+      console.log(`🟠 Amazon Filial | Pedido ${numeroPedido} (manual)`);
     }
 
     res.sendStatus(200);
@@ -221,19 +236,14 @@ app.post("/webhook/bling/pedidos", async (req, res) => {
     res.sendStatus(500);
   }
 });
+
 /* ======================================================
-   🧪 DEBUG – BUSCA COMPLETA DE PEDIDO
-   Uso exclusivo para análise de dados reais
-   NÃO USAR EM AUTOMAÇÕES
-====================================================== */
-/* ======================================================
-   🧪 DEBUG – BUSCAR PEDIDO POR NÚMERO (APENAS PARA INSPEÇÃO)
+   🧪 DEBUG – BUSCA COMPLETA DE PEDIDO (POR NÚMERO BLING)
 ====================================================== */
 app.get("/debug-pedido/:numero", async (req, res) => {
   try {
     const numeroPedido = req.params.numero;
 
-    // 1️⃣ Buscar pedido pelo número
     const resumo = await safeRequest(() =>
       axios.get(
         `https://api.bling.com.br/Api/v3/pedidos/vendas?numero=${numeroPedido}`,
@@ -249,7 +259,6 @@ app.get("/debug-pedido/:numero", async (req, res) => {
       });
     }
 
-    // 2️⃣ Buscar detalhe completo pelo ID
     const detalhe = await safeRequest(() =>
       axios.get(
         `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidos[0].id}`,
@@ -257,10 +266,8 @@ app.get("/debug-pedido/:numero", async (req, res) => {
       )
     );
 
-    // ✅ Retorna no navegador
     res.json(detalhe.data.data);
 
-    // ✅ Loga também
     console.log(
       "🧾 DEBUG Pedido completo:",
       JSON.stringify(detalhe.data.data, null, 2)
@@ -271,17 +278,9 @@ app.get("/debug-pedido/:numero", async (req, res) => {
     res.status(500).json({ erro: error.message });
   }
 });
-/* ======================================================
-   🤖 AUTOMAÇÃO
-====================================================== */
-// ✅ Polling desligado definitivamente
-// setInterval(processarPedidos, ...);
-
-setInterval(atualizarToken, 90 * 60 * 1000); // 1h30
-
 
 /* ======================================================
-   🚀 SERVIDOR
+   🚀 STARTUP
 ====================================================== */
 (async () => {
   try {
@@ -291,6 +290,9 @@ setInterval(atualizarToken, 90 * 60 * 1000); // 1h30
     console.error("❌ Erro ao renovar token no startup:", err.message);
   }
 })();
+
+setInterval(atualizarToken, 90 * 60 * 1000); // 1h30
+
 app.listen(process.env.PORT || 3000, () => {
   console.log("✅ Servidor rodando");
 });
