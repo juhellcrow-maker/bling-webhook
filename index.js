@@ -82,19 +82,25 @@ async function atualizarToken() {
 /* ======================================================
    🛡️ SAFE REQUEST
 ====================================================== */
-async function safeRequest(fn, tentativas = 2) {
+async function safeRequest(fn, tentativas = 3) {
   try {
     return await fn();
   } catch (error) {
+
+    // 🔄 TOKEN EXPIRADO OU TRANSITÓRIO
     if (
       error.response?.status === 401 ||
       error.response?.data?.error?.type === "invalid_token"
     ) {
-      console.log("🔄 Token inválido, renovando...");
+      if (tentativas <= 0) throw error;
+
+      console.log("🔄 Token inválido, tentando renovar...");
       await atualizarToken();
-      return fn();
+
+      return safeRequest(fn, tentativas - 1);
     }
 
+    // ⏳ RATE LIMIT
     if (error.response?.status === 429 && tentativas > 0) {
       console.log("⏳ Rate limit, aguardando...");
       await delay(10000);
