@@ -114,88 +114,45 @@ async function alterarStatusPedido(pedidoId, numeroPedido, statusDestino) {
    🚀 PROCESSAR PEDIDOS (COM PAGINAÇÃO)
 ====================================================== */
 async function processarPedidos() {
-  try {
-    console.log("🔄 Iniciando processamento de pedidos...");
+  const response = await safeRequest(() =>
+    axios.get(
+      "https://api.bling.com.br/Api/v3/pedidos/vendas?situacao=6&pagina=1&limite=10",
+      { headers: getHeaders() }
+    )
+  );
 
-    let pagina = 1;
-    let totalProcessados = 0;
+  const pedidos = response.data.data || [];
 
-    while (true) {
-      const response = await safeRequest(() =>
-        axios.get(
-          `https://api.bling.com.br/Api/v3/pedidos/vendas?situacao=6&pagina=${pagina}&limite=10`,
-          { headers: getHeaders() }
-        )
-      );
+  for (const pedido of pedidos) {
+    const regra = REGRAS_ML_MATRIZ.find(regra =>
+      regra.lojaId === pedido.loja?.id &&
+      regra.statusOrigem === pedido.situacao?.id &&
+      regra.unidades.includes(pedido.loja?.unidadeNegocio?.id)
+    );
 
-      const pedidos = response.data.data || [];
-      if (pedidos.length === 0) break;
+    if (!regra) continue;
 
-      console.log(
-        `📄 Página ${pagina} | Pedidos encontrados: ${pedidos.length}`
-      );
+    const detalhe = await safeRequest(() =>
+      axios.get(
+        `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`,
+        { headers: getHeaders() }
+      )
+    );
 
-      for (const pedido of pedidos) {
-        await delay(1500);
+    const pedidoCompleto = detalhe.data.data;
 
-        const detalhe = await safeRequest(() =>
-          axios.get(
-            `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`,
-            { headers: getHeaders() }
-          )
-        );
+    console.log(
+      `✅ Pedido Nº ${pedidoCompleto.numero} atende regra ${regra.nome}`
+    );
 
-        const pedidoCompleto = detalhe.data.data;
-
-        console.log(
-          `ℹ️ Pedido Nº ${pedidoCompleto.numero} | Status: ${pedidoCompleto.situacao?.id} (${pedidoCompleto.situacao?.descricao})`
-        );
-
-        // 🔐 GARANTIA FINAL: SOMENTE STATUS 6
-        if (pedidoCompleto.situacao?.id !== 6) {
-          console.log(
-            `⏭ Pedido Nº ${pedidoCompleto.numero} ignorado (fora do status 6)`
-          );
-          continue;
-        }
-
-        const regra = encontrarRegra(pedidoCompleto);
-
-        if (!regra) {
-          console.log(
-            `⏭ Pedido Nº ${pedidoCompleto.numero} sem regra aplicável`
-          );
-          continue;
-        }
-
-        console.log(
-          `✅ Regra "${regra.nome}" aplicada no Pedido Nº ${pedidoCompleto.numero}`
-        );
-
-        await alterarStatusPedido(
-          pedidoCompleto.id,
-          pedidoCompleto.numero,
-          regra.statusDestino
-        );
-
-        totalProcessados++;
-      }
-
-      pagina++;
-    }
-
-    console.log(`🎯 Total de pedidos processados: ${totalProcessados}`);
-  } catch (error) {
-  console.error("❌ Erro ao alterar status:");
-
-  if (error.response?.data) {
-    console.error(JSON.stringify(error.response.data, null, 2));
-  } else {
-    console.error(error.message);
+    await alterarStatusPedido(
+      pedidoCompleto.id,
+      pedidoCompleto.numero,
+      regra.statusDestino
+    );
   }
 }
- 
-}
+``
 
 /* ======================================================
    🔐 PROTEÇÃO DE ROTAS
