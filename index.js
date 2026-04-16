@@ -186,10 +186,14 @@ async function processarPedidos() {
 
     console.log(`🎯 Total de pedidos processados: ${totalProcessados}`);
   } catch (error) {
-    console.error(
-      "❌ Erro geral:",
-      error.response?.data || error.message
-    );
+  console.error("❌ Erro ao alterar status:");
+
+  if (error.response?.data) {
+    console.error(JSON.stringify(error.response.data, null, 2));
+  } else {
+    console.error(error.message);
+  }
+}
   }
 }
 
