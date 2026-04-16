@@ -6,25 +6,24 @@ const app = express();
 app.use(express.json());
 
 /* ======================================================
-   🔐 CONFIGURAÇÕES (ENV - RENDER)
+   🔐 CONFIG (ENV)
 ====================================================== */
 let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 let REFRESH_TOKEN = process.env.REFRESH_TOKEN;
-
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const SECRET_KEY = process.env.SECRET_KEY;
 
+const LOJA_MERCADO_LIVRE = 204560827;
+const STATUS_DATA_FUTURA = 462967;
+
 /* ======================================================
-   ⏳ DELAY
+   ⏳ UTIL
 ====================================================== */
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/* ======================================================
-   🔧 HEADERS
-====================================================== */
 function getHeaders() {
   return {
     Authorization: `Bearer ${ACCESS_TOKEN}`,
@@ -33,7 +32,7 @@ function getHeaders() {
 }
 
 /* ======================================================
-   🔄 ATUALIZAR TOKEN
+   🔄 TOKEN
 ====================================================== */
 async function atualizarToken() {
   const params = new URLSearchParams();
@@ -51,12 +50,9 @@ async function atualizarToken() {
   ACCESS_TOKEN = response.data.access_token;
   REFRESH_TOKEN = response.data.refresh_token;
 
-  console.log("🔄 Token atualizado com sucesso");
+  console.log("🔄 Token atualizado");
 }
 
-/* ======================================================
-   🛡️ SAFE REQUEST
-====================================================== */
 async function safeRequest(fn, tentativas = 2) {
   try {
     return await fn();
@@ -81,7 +77,7 @@ async function safeRequest(fn, tentativas = 2) {
 }
 
 /* ======================================================
-   🧠 MOTOR DE REGRAS
+   🧠 REGRAS
 ====================================================== */
 function encontrarRegra(pedido) {
   return REGRAS_ML_MATRIZ.find(regra =>
@@ -91,95 +87,106 @@ function encontrarRegra(pedido) {
   );
 }
 
+function dataPrevistaMaiorQueDataSaida(pedido) {
+  if (!pedido.dataPrevista || !pedido.dataSaida) return false;
+
+  const prevista = new Date(pedido.dataPrevista);
+  const saida = new Date(pedido.dataSaida);
+
+  return prevista > saida;
+}
+
 /* ======================================================
-   🔁 ALTERAR STATUS DO PEDIDO
+   🔁 ALTERAR STATUS
 ====================================================== */
 async function alterarStatusPedido(pedidoId, numeroPedido, statusDestino) {
   console.log(
-    `🔄 Alterando Pedido Nº ${numeroPedido} → Situação ${statusDestino}`
+    `🔄 Pedido Nº ${numeroPedido} → Situação ${statusDestino}`
   );
 
   await safeRequest(() =>
     axios.patch(
       `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}/situacoes/${statusDestino}`,
-      null, // body vazio (PATCH não exige payload)
+      null,
       { headers: getHeaders() }
     )
   );
 
-  console.log(`✅ Pedido Nº ${numeroPedido} atualizado com sucesso`);
+  console.log(`✅ Pedido Nº ${numeroPedido} atualizado`);
 }
-``
+
 /* ======================================================
-   🚀 PROCESSAR PEDIDOS (COM PAGINAÇÃO)
+   🚀 PROCESSAR PEDIDOS (ENXUTO)
 ====================================================== */
 async function processarPedidos() {
-  const response = await safeRequest(() =>
-    axios.get(
-      "https://api.bling.com.br/Api/v3/pedidos/vendas?situacao=6&pagina=1&limite=10",
-      { headers: getHeaders() }
-    )
-  );
-
-  const pedidos = response.data.data || [];
-
-  for (const pedido of pedidos) {
-    const regra = REGRAS_ML_MATRIZ.find(regra =>
-      regra.lojaId === pedido.loja?.id &&
-      regra.statusOrigem === pedido.situacao?.id &&
-      regra.unidades.includes(pedido.loja?.unidadeNegocio?.id)
-    );
-
-    if (!regra) continue;
-
-    const detalhe = await safeRequest(() =>
+  try {
+    const response = await safeRequest(() =>
       axios.get(
-        `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`,
+        "https://api.bling.com.br/Api/v3/pedidos/vendas?situacao=6&pagina=1&limite=10",
         { headers: getHeaders() }
       )
     );
 
-    const pedidoCompleto = detalhe.data.data;
+    const pedidos = response.data.data || [];
+    if (!pedidos.length) return;
 
-    console.log(
-      `✅ Pedido Nº ${pedidoCompleto.numero} atende regra ${regra.nome}`
-    );
+    for (const pedido of pedidos) {
+      const detalhe = await safeRequest(() =>
+        axios.get(
+          `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`,
+          { headers: getHeaders() }
+        )
+      );
 
-    await alterarStatusPedido(
-      pedidoCompleto.id,
-      pedidoCompleto.numero,
-      regra.statusDestino
-    );
+      const pedidoCompleto = detalhe.data.data;
+
+      console.log(
+        `ℹ️ Pedido Nº ${pedidoCompleto.numero} | Status ${pedidoCompleto.situacao?.id}`
+      );
+
+      // ✅ SOMENTE MERCADO LIVRE
+      if (pedidoCompleto.loja?.id !== LOJA_MERCADO_LIVRE) continue;
+      if (pedidoCompleto.situacao?.id !== 6) continue;
+
+      // ✅ NOVA REGRA: DATA FUTURA
+      if (dataPrevistaMaiorQueDataSaida(pedidoCompleto)) {
+        console.log(
+          `🕒 dataPrevista (${pedidoCompleto.dataPrevista}) > dataSaida (${pedidoCompleto.dataSaida})`
+        );
+
+        await alterarStatusPedido(
+          pedidoCompleto.id,
+          pedidoCompleto.numero,
+          STATUS_DATA_FUTURA
+        );
+
+        continue; // NÃO aplica outras regras
+      }
+
+      // ✅ REGRAS EXISTENTES
+      const regra = encontrarRegra(pedidoCompleto);
+      if (!regra) continue;
+
+      await alterarStatusPedido(
+        pedidoCompleto.id,
+        pedidoCompleto.numero,
+        regra.statusDestino
+      );
+    }
+  } catch (error) {
+    console.error("❌ Erro no processamento:");
+    console.error(error.response?.data || error.message);
   }
 }
-``
-
-/* ======================================================
-   🔐 PROTEÇÃO DE ROTAS
-====================================================== */
-function auth(req, res, next) {
-  if (req.headers.authorization !== SECRET_KEY) {
-    return res.status(401).json({ erro: "Não autorizado" });
-  }
-  next();
-}
-
-/* ======================================================
-   🌐 ROTAS
-====================================================== */
-app.get("/processar-pedidos", auth, async (req, res) => {
-  await processarPedidos();
-  res.json({ ok: true });
-});
 
 /* ======================================================
    🤖 AUTOMAÇÃO
 ====================================================== */
-setInterval(processarPedidos, 10 * 60 * 1000);   // 10 minutos
-setInterval(atualizarToken, 90 * 60 * 1000);    // 1h30 minutos
+setInterval(processarPedidos, 10 * 60 * 1000); // 10 minutos
+setInterval(atualizarToken, 60 * 60 * 1000);   // 1 hora
 
 /* ======================================================
-   🚀 SERVIDOR
+   🚀 SERVER
 ====================================================== */
 app.listen(process.env.PORT || 3000, () => {
   console.log("✅ Servidor rodando");
