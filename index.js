@@ -80,6 +80,41 @@ async function safeRequest(fn, tentativas = 2) {
   }
 }
 
+/*====================
+Busca detalhes do pedido
+=========================*/
+async function buscarPedidoPorNumero(numeroPedido) {
+  const response = await safeRequest(() =>
+    axios.get(
+      `https://api.bling.com.br/Api/v3/pedidos/vendas?numero=${numeroPedido}`,
+      { headers: getHeaders() }
+    )
+  );
+
+  const pedidos = response.data.data || [];
+
+  if (!pedidos.length) {
+    throw new Error(`Pedido ${numeroPedido} não encontrado`);
+  }
+
+  return pedidos[0]; // contém id, numero, situação, etc.
+}
+
+async function buscarDetalhePedidoPorNumero(numeroPedido) {
+  // 1️⃣ Busca o resumo pelo número
+  const pedidoResumo = await buscarPedidoPorNumero(numeroPedido);
+
+  // 2️⃣ Busca o detalhe completo pelo ID
+  const detalhe = await safeRequest(() =>
+    axios.get(
+      `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoResumo.id}`,
+      { headers: getHeaders() }
+    )
+  );
+
+  return detalhe.data.data;
+}
+
 /* ======================================================
    🧠 MOTOR DE REGRAS
 ====================================================== */
@@ -172,6 +207,28 @@ app.get("/processar-pedidos", auth, async (req, res) => {
   res.json({ ok: true });
 });
 
+app.get("/debug-pedido/:numero", async (req, res) => {
+  try {
+    const numeroPedido = req.params.numero;
+
+    const pedidoCompleto =
+      await buscarDetalhePedidoPorNumero(numeroPedido);
+
+    // ✅ Mostra no navegador
+    res.json(pedidoCompleto);
+
+    // ✅ Também mostra no log
+    console.log(
+      "🧾 Pedido completo:",
+      JSON.stringify(pedidoCompleto, null, 2)
+    );
+
+  } catch (error) {
+    res.status(500).json({
+      erro: error.message
+    });
+  }
+});
 /* ======================================================
    🤖 AUTOMAÇÃO
 ====================================================== */
