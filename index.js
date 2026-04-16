@@ -212,12 +212,12 @@ async function processarPedidos() {
       const regra = encontrarRegra(pedidoCompleto);
 
       if (!regra) {
-        console.log(`⏭ Pedido ${pedidoCompleto.id} sem regra aplicável`);
+        console.log(`⏭ Pedido ${pedidoCompleto.numero} sem regra aplicável`);
         continue;
       }
 
       console.log(
-        `✅ Regra "${regra.nome}" encontrada → alterando status do pedido ${pedidoCompleto.id}`
+        `✅ Regra "${regra.nome}" encontrada → alterando status do pedido ${pedidoCompleto.numero}`
       );
 
       // 🔥 Alterar o Pedido Para Deposito Destino
