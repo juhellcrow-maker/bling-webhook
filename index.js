@@ -114,6 +114,40 @@ async function buscarDetalhePedidoPorNumero(numeroPedido) {
 
   return detalhe.data.data;
 }
+/* ======================================================
+   🧠 WEBHOOK PEDIDOS
+====================================================== */
+app.post("/webhook/bling/pedidos", express.json(), async (req, res) => {
+  try {
+    const evento = req.body;
+
+    console.log("📣 Webhook do Bling recebido:");
+    console.log(JSON.stringify(evento, null, 2));
+
+    const idPedido = evento.id;
+    const numeroPedido = evento.numero;
+    const lojaId = evento.loja;
+    const situacao = evento.situacao;
+    const tipoEvento = evento.evento;
+
+    console.log(
+      `➡️ Evento: ${tipoEvento} | Pedido Nº ${numeroPedido} | Loja ${lojaId} | Status ${situacao}`
+    );
+
+    /**
+     * AQUI é onde, no futuro, você vai:
+     * - se loja = Mercado Livre → processar regras
+     * - se loja = Amazon → fluxo manual
+     *
+     * Por enquanto: SOMENTE LOGAR
+     */
+
+    res.sendStatus(200); // ⚠️ OBRIGATÓRIO
+  } catch (error) {
+    console.error("❌ Erro no webhook:", error.message);
+    res.sendStatus(500);
+  }
+});
 
 /* ======================================================
    🧠 MOTOR DE REGRAS
