@@ -124,25 +124,29 @@ app.post("/webhook/bling/pedidos", express.json(), async (req, res) => {
     console.log("📣 Webhook do Bling recebido:");
     console.log(JSON.stringify(evento, null, 2));
 
-    const idPedido = evento.id;
-    const numeroPedido = evento.numero;
-    const lojaId = evento.loja;
-    const situacao = evento.situacao;
-    const tipoEvento = evento.evento;
+    // ✅ LEITURA CORRETA
+    const tipoEvento = evento.event;
+    const idPedido = evento.data?.id;
+    const numeroPedido = evento.data?.numero;
+    const lojaId = evento.data?.loja?.id;
+    const situacaoId = evento.data?.situacao?.id;
 
     console.log(
-      `➡️ Evento: ${tipoEvento} | Pedido Nº ${numeroPedido} | Loja ${lojaId} | Status ${situacao}`
+      `➡️ Evento: ${tipoEvento} | Pedido Nº ${numeroPedido} | Loja ${lojaId} | Status ${situacaoId}`
     );
 
-    /**
-     * AQUI é onde, no futuro, você vai:
-     * - se loja = Mercado Livre → processar regras
-     * - se loja = Amazon → fluxo manual
-     *
-     * Por enquanto: SOMENTE LOGAR
-     */
+    // ✅ Processar SOMENTE Mercado Livre
+    if (lojaId === LOJA_MERCADO_LIVRE && situacaoId === 6) {
+      console.log(`🔵 Mercado Livre | Processando pedido ${numeroPedido}`);
+      await processarPedidoPorId(idPedido);
+    }
 
-    res.sendStatus(200); // ⚠️ OBRIGATÓRIO
+    // ✅ Amazon: apenas log
+    if (lojaId === LOJA_AMAZON) {
+      console.log(`🟠 Amazon | Pedido ${numeroPedido} recebido (manual)`);
+    }
+
+    res.sendStatus(200);
   } catch (error) {
     console.error("❌ Erro no webhook:", error.message);
     res.sendStatus(500);
