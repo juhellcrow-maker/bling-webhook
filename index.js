@@ -101,7 +101,7 @@ async function alterarStatusPedido(pedidoId, numeroPedido, statusDestino) {
 
   await safeRequest(() =>
     axios.put(
-      `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}`,
+      `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}/situacao`,
       { situacao: statusDestino },
       { headers: getHeaders() }
     )
