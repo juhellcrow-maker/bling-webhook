@@ -7,7 +7,7 @@ const REGRAS = [
     statusDestino: 462966
   },
   {
-    nome: "FORNECEDOR 2",
+    nome: "SERV-SEG RIO PRETO",
     lojaId: 204560827,
     unidades: [2532043, 2803281],
     statusOrigem: 6,
