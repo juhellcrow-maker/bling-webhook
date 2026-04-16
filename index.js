@@ -116,6 +116,44 @@ async function buscarDetalhePedidoPorNumero(numeroPedido) {
 
   return detalhe.data.data;
 }
+
+/* ======================================================
+   🧠 PROCESSAR PEDIDOS POR ID
+====================================================== */
+async function processarPedidoPorId(idPedido) {
+  const detalhe = await safeRequest(() =>
+    axios.get(
+      `https://api.bling.com.br/Api/v3/pedidos/vendas/${idPedido}`,
+      { headers: getHeaders() }
+    )
+  );
+
+  const pedido = detalhe.data.data;
+
+  console.log(
+    `🔍 Processando Pedido Nº ${pedido.numero} | Loja ${pedido.loja?.id}`
+  );
+
+  // 🔐 Garantias
+  if (pedido.loja?.id !== ML_MATRIZ) return;
+  if (pedido.situacao?.id !== 6) return;
+
+  const regra = encontrarRegra(pedido);
+
+  if (!regra) {
+    console.log(`⏭ Pedido ${pedido.numero} sem regra aplicável`);
+    return;
+  }
+
+  console.log(`✅ Regra "${regra.nome}" aplicada ao pedido ${pedido.numero}`);
+
+  await alterarStatusPedido(
+    pedido.id,
+    pedido.numero,
+    regra.statusDestino
+  );
+}
+
 /* ======================================================
    🧠 WEBHOOK PEDIDOS
 ====================================================== */
@@ -184,7 +222,7 @@ async function alterarStatusPedido(pedidoId, numeroPedido, statusDestino) {
 
   console.log(`✅ Pedido Nº ${numeroPedido} atualizado com sucesso`);
 }
-``
+
 /* ======================================================
    🚀 PROCESSAR PEDIDOS (COM PAGINAÇÃO)
 ====================================================== */
