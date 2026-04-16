@@ -175,8 +175,8 @@ app.get("/processar-pedidos", auth, async (req, res) => {
 /* ======================================================
    🤖 AUTOMAÇÃO
 ====================================================== */
-setInterval(processarPedidos, 5 * 60 * 1000);   // 5 minutos
-setInterval(atualizarToken, 30 * 60 * 1000);    // 30 minutos
+setInterval(processarPedidos, 10 * 60 * 1000);   // 10 minutos
+setInterval(atualizarToken, 90 * 60 * 1000);    // 1h30 minutos
 
 /* ======================================================
    🚀 SERVIDOR
