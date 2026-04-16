@@ -10,6 +10,8 @@ app.use(express.json());
 ====================================================== */
 let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 let REFRESH_TOKEN = process.env.REFRESH_TOKEN;
+let tokenRefreshing = false;
+let tokenRefreshPromise = null;
 
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
@@ -36,24 +38,47 @@ function getHeaders() {
    🔄 TOKEN
 ====================================================== */
 async function atualizarToken() {
-  const params = new URLSearchParams();
-  params.append("grant_type", "refresh_token");
-  params.append("refresh_token", REFRESH_TOKEN);
-  params.append("client_id", CLIENT_ID);
-  params.append("client_secret", CLIENT_SECRET);
+  // ✅ Se já está renovando, aguarda
+  if (tokenRefreshing && tokenRefreshPromise) {
+    console.log("⏳ Aguardando refresh de token em andamento...");
+    await tokenRefreshPromise;
+    return;
+  }
 
-  const response = await axios.post(
-    "https://developer.bling.com.br/api/bling/oauth/token",
-    params,
-    { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-  );
+  tokenRefreshing = true;
 
-  ACCESS_TOKEN = response.data.access_token;
-  REFRESH_TOKEN = response.data.refresh_token;
+  tokenRefreshPromise = (async () => {
+    try {
+      const params = new URLSearchParams();
+      params.append("grant_type", "refresh_token");
+      params.append("refresh_token", REFRESH_TOKEN);
+      params.append("client_id", CLIENT_ID);
+      params.append("client_secret", CLIENT_SECRET);
 
-  console.log("🔄 Token atualizado");
+      const response = await axios.post(
+        "https://developer.bling.com.br/api/bling/oauth/token",
+        params,
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      );
+
+      ACCESS_TOKEN = response.data.access_token;
+      REFRESH_TOKEN = response.data.refresh_token;
+
+      console.log("✅ Token atualizado com sucesso");
+    } catch (error) {
+      console.error(
+        "❌ Falha ao atualizar token:",
+        error.response?.data || error.message
+      );
+      throw error;
+    } finally {
+      tokenRefreshing = false;
+      tokenRefreshPromise = null;
+    }
+  })();
+
+  await tokenRefreshPromise;
 }
-
 /* ======================================================
    🛡️ SAFE REQUEST
 ====================================================== */
