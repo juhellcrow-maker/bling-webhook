@@ -193,11 +193,12 @@ async function processarPedidos() {
     );
 
     const pedidos = response.data.data || [];
-    console.log("📦 Pedidos encontrados:", pedidos.length);
+    console.log(`📦 Pedidos encontrados: ${pedidos.length}`);
 
     for (const pedido of pedidos) {
       await delay(1500);
 
+      // buscar pedido completo
       const detalhe = await safeRequest(() =>
         axios.get(
           `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`,
@@ -206,18 +207,29 @@ async function processarPedidos() {
       );
 
       const pedidoCompleto = detalhe.data.data;
+
+      // encontra a regra
       const regra = encontrarRegra(pedidoCompleto);
 
-      if (regra) {
-        console.log(`✅ Regra aplicada: ${regra.nome} | Pedido ${pedidoCompleto.id}`);
-        // aqui você pode aplicar ações futuras
+      if (!regra) {
+        console.log(`⏭ Pedido ${pedidoCompleto.id} sem regra aplicável`);
+        continue;
       }
+
+      console.log(
+        `✅ Regra "${regra.nome}" encontrada → alterando status do pedido ${pedidoCompleto.id}`
+      );
+
+      // 🔥 Alterar o Pedido Para Deposito Destino
+      await alterarStatusPedido(
+        pedidoCompleto.id,
+        regra.statusDestino
+      );
     }
   } catch (error) {
     console.error("❌ Erro geral:", error.response?.data || error.message);
   }
 }
-
 /* ======================================================
    🔐 MIDDLEWARE DE PROTEÇÃO
 ====================================================== */
