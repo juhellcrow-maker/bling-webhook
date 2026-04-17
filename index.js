@@ -180,35 +180,26 @@ app.post("/webhook", async (req, res) => {
 
   try {
     const evento = req.body;
-
     const idPedido = evento?.data?.id;
 
     console.log("🔔 Webhook recebido");
-    console.log("📦 Pedido ${numeroPedido} | ID ${idPedido} | Status ${statusAtual}");
 
     if (!idPedido) {
-      console.log("⚠️ Evento sem ID de pedido, ignorando");
+      console.log("⚠️ Webhook sem ID de pedido, ignorando");
       return res.status(200).send("Evento inválido");
     }
 
-   const idPedido = evento?.data?.id;
+    console.log(`📦 Pedido recebido | ID ${idPedido}`);
 
-if (!idPedido) {
-  console.log("⚠️ Webhook sem ID de pedido, ignorando");
-  return res.status(200).send("Evento inválido");
-}
-
-await processarPedidoPorId(idPedido);
+    await processarPedidoPorId(idPedido);
 
     res.status(200).send("OK");
   } catch (err) {
     console.error("❌ Erro no webhook:", err.message);
-
-    // ⚠️ responder 200 para evitar reenvio do Bling
+    // ⚠️ sempre responder 200 para o Bling não reenviar
     res.status(200).send("Erro tratado");
   }
 });
-``
 
 /* ================= DEBUG ================= */
 app.get("/debug-pedido/:numero", async (req, res) => {
