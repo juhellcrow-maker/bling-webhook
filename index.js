@@ -79,7 +79,48 @@ async function safeRequest(fn, tentouRefresh = false) {
     throw error;
   }
 }
+/* ================= OAUTH CALLBACK ================= */
+app.get("/callback", async (req, res) => {
+  try {
+    const { code } = req.query;
 
+    if (!code) {
+      return res.status(400).send("Code não informado");
+    }
+
+    const params = new URLSearchParams();
+    params.append("grant_type", "authorization_code");
+    params.append("client_id", process.env.CLIENT_ID);
+    params.append("client_secret", process.env.CLIENT_SECRET);
+    params.append("code", code);
+    params.append(
+      "redirect_uri",
+      "https://bling-webhook.onrender.com/callback"
+    );
+
+    const response = await axios.post(
+      "https://developer.bling.com.br/api/bling/oauth/token",
+      params,
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    );
+
+    const { access_token, refresh_token, expires_in } = response.data;
+
+    console.log("✅ NOVOS TOKENS GERADOS VIA CALLBACK");
+    console.log("ACCESS_TOKEN:", access_token);
+    console.log("REFRESH_TOKEN:", refresh_token);
+    console.log("EXPIRES_IN:", expires_in);
+
+    res.json({
+      access_token,
+      refresh_token,
+      expires_in
+    });
+  } catch (err) {
+    console.error("❌ Erro no callback OAuth:", err.response?.data || err.message);
+    res.status(500).send("Erro no callback OAuth");
+  }
+});
 
 /* ================= REGRAS ================= */
 function encontrarRegra(pedido) {
