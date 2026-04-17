@@ -10,7 +10,7 @@ const ML_MATRIZ = 204560827;
 const AMZ_FILIAL = 205415213;
 
 // ✅ CONTROLE GLOBAL
-const WEBHOOK_ATIVO = false;   // <<< MODO MANUTENÇÃO
+const WEBHOOK_ATIVO = true;   // <<< MODO PPRODUÇÃO
 const pedidosRecentes = new Set();
 
 let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
@@ -122,25 +122,6 @@ app.get("/callback", async (req, res) => {
   }
 });
 
-/* ================= Teste Processar pedido ================= */
-app.post("/teste/alterar-status/:id", async (req, res) => {
-  try {
-    const id = req.params.id;
-
-    console.log(`🧪 TESTE MANUAL → Processando pedido ${id}`);
-
-    // reaproveita TODA a lógica real
-    await processarPedidoPorId(id);
-
-    res.json({
-      ok: true,
-      mensagem: `Pedido ${id} processado manualmente`
-    });
-  } catch (err) {
-    console.error("❌ Erro no teste manual:", err.message);
-    res.status(500).json({ erro: err.message });
-  }
-});
 
 /* ================= REGRAS ================= */
 function encontrarRegra(pedido) {
@@ -190,27 +171,37 @@ async function processarPedidoPorId(id) {
 }
 
 /* ================= WEBHOOK ================= */
-app.post("/webhook/bling/pedidos", async (req, res) => {
+
+app.post("/webhook", async (req, res) => {
   if (!WEBHOOK_ATIVO) {
-    console.log("⛔ Webhook bloqueado (manutenção)");
-    return res.sendStatus(200);
+    console.log("🔔 Webhook recebido, mas está DESATIVADO");
+    return res.status(200).send("Webhook ignorado");
   }
 
-  const { id } = req.body.data;
+  try {
+    const evento = req.body;
 
-  if (pedidosRecentes.has(id)) {
-    console.log(`⏭ Evento duplicado ignorado (${id})`);
-    return res.sendStatus(200);
+    const idPedido = evento?.data?.id;
+
+    console.log("🔔 Webhook recebido");
+    console.log(`📦 Pedido ${idPedido ?? "ID não encontrado"}`);
+
+    if (!idPedido) {
+      console.log("⚠️ Evento sem ID de pedido, ignorando");
+      return res.status(200).send("Evento inválido");
+    }
+
+    await processarEventoWebhook(evento);
+
+    res.status(200).send("OK");
+  } catch (err) {
+    console.error("❌ Erro no webhook:", err.message);
+
+    // ⚠️ responder 200 para evitar reenvio do Bling
+    res.status(200).send("Erro tratado");
   }
-
-  pedidosRecentes.add(id);
-  setTimeout(() => pedidosRecentes.delete(id), 60000);
-
-  await processarPedidoPorId(id);
-  await delay(1100);
-
-  res.sendStatus(200);
 });
+``
 
 /* ================= DEBUG ================= */
 app.get("/debug-pedido/:numero", async (req, res) => {
