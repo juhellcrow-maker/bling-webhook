@@ -280,6 +280,39 @@ app.get("/debug-pedido/:numero", async (req, res) => {
 });
 
 /* ======================================================
+   🚀 CallBack
+====================================================== */
+
+app.get("/callback", async (req, res) => {
+  try {
+    const { code } = req.query;
+    if (!code) return res.status(400).send("Code não informado");
+
+    const params = new URLSearchParams();
+    params.append("grant_type", "authorization_code");
+    params.append("client_id", process.env.CLIENT_ID);
+    params.append("client_secret", process.env.CLIENT_SECRET);
+    params.append("code", code);
+    params.append(
+      "redirect_uri",
+      "https://bling-webhook.onrender.com/callback"
+    );
+
+    const response = await axios.post(
+      "https://developer.bling.com.br/api/bling/oauth/token",
+      params,
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    );
+
+    res.json(response.data); // <-- mostra access_token e refresh_token
+
+  } catch (err) {
+    res.status(500).json(err.response?.data || err.message);
+  }
+});
+
+
+/* ======================================================
    🚀 STARTUP
 ====================================================== */
 (async () => {
@@ -296,4 +329,4 @@ setInterval(atualizarToken, 90 * 60 * 1000); // 1h30
 app.listen(process.env.PORT || 3000, () => {
   console.log("✅ Servidor rodando");
 });
-``
+
