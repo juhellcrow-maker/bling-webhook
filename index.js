@@ -51,6 +51,34 @@ async function talvezAtualizarToken() {
 
   console.log("✅ Token renovado proativamente");
 }
+/* ================= SafeRequest ================= */
+async function safeRequest(fn, tentouRefresh = false) {
+  try {
+    // tenta garantir token válido antes da chamada
+    await talvezAtualizarToken();
+    return await fn();
+
+  } catch (error) {
+
+    // 🔒 Fallback ÚNICO para token expirado
+    if (
+      error.response?.status === 401 &&
+      !tentouRefresh
+    ) {
+      console.warn("⚠️ 401 detectado, forçando refresh único do token");
+
+      // força o próximo refresh
+      ultimoRefresh = 0;
+      await talvezAtualizarToken();
+
+      // tenta novamente apenas uma vez
+      return safeRequest(fn, true);
+    }
+
+    // qualquer outro erro sobe
+    throw error;
+  }
+}
 
 /* ================= REQUEST ================= */
 async function safeRequest(fn) {
