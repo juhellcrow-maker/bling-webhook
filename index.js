@@ -184,14 +184,21 @@ app.post("/webhook", async (req, res) => {
     const idPedido = evento?.data?.id;
 
     console.log("🔔 Webhook recebido");
-    console.log(`📦 Pedido ${idPedido ?? "ID não encontrado"}`);
+    console.log("📦 Pedido ${numeroPedido} | ID ${idPedido} | Status ${statusAtual}");
 
     if (!idPedido) {
       console.log("⚠️ Evento sem ID de pedido, ignorando");
       return res.status(200).send("Evento inválido");
     }
 
-    await processarEventoWebhook(evento);
+   const idPedido = evento?.data?.id;
+
+if (!idPedido) {
+  console.log("⚠️ Webhook sem ID de pedido, ignorando");
+  return res.status(200).send("Evento inválido");
+}
+
+await processarPedidoPorId(idPedido);
 
     res.status(200).send("OK");
   } catch (err) {
