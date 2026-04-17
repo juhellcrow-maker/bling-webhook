@@ -212,10 +212,11 @@ app.post("/webhook/bling/pedidos", async (req, res) => {
     const idPedido = evento.data?.id;
     const numeroPedido = evento.data?.numero;
     const lojaId = evento.data?.loja?.id;
+    const deposito = evento.data?.unidadeNegocio?.id;
     const situacaoId = evento.data?.situacao?.id;
 
     console.log(
-      `➡️ Evento: ${tipoEvento} | Pedido Nº ${numeroPedido} | Loja ${lojaId} | Status ${situacaoId}`
+      `➡️ Evento: ${tipoEvento} | Pedido Nº ${numeroPedido} | Loja ${lojaId} | | Deposito ${deposito} | Status ${situacaoId}`
     );
 
     if (lojaId === ML_MATRIZ && situacaoId === 6) {
