@@ -122,6 +122,26 @@ app.get("/callback", async (req, res) => {
   }
 });
 
+/* ================= Teste Processar pedido ================= */
+app.post("/teste/alterar-status/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    console.log(`🧪 TESTE MANUAL → Processando pedido ${id}`);
+
+    // reaproveita TODA a lógica real
+    await processarPedidoPorId(id);
+
+    res.json({
+      ok: true,
+      mensagem: `Pedido ${id} processado manualmente`
+    });
+  } catch (err) {
+    console.error("❌ Erro no teste manual:", err.message);
+    res.status(500).json({ erro: err.message });
+  }
+});
+
 /* ================= REGRAS ================= */
 function encontrarRegra(pedido) {
   return REGRAS_ML_MATRIZ.find(r =>
