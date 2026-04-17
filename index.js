@@ -80,11 +80,6 @@ async function safeRequest(fn, tentouRefresh = false) {
   }
 }
 
-/* ================= REQUEST ================= */
-async function safeRequest(fn) {
-  await talvezAtualizarToken();
-  return fn(); // ❌ sem refresh por erro
-}
 
 /* ================= REGRAS ================= */
 function encontrarRegra(pedido) {
