@@ -116,10 +116,14 @@ async function safeRequest(fn, tentativas = 3) {
    🧠 MOTOR DE REGRAS (ML MATRIZ)
 ====================================================== */
 function encontrarRegra(pedido) {
+  const lojaId = pedido.loja?.id;
+  const unidadeId = pedido.loja?.unidadeNegocio?.id;
+  const statusAtual = pedido.situacao?.id;
+
   return REGRAS_ML_MATRIZ.find(regra =>
-    regra.lojaId === pedido.loja?.id &&
-    regra.statusOrigem === pedido.situacao?.id &&
-    regra.unidades.includes(pedido.loja?.unidadeNegocio?.id)
+    regra.lojaId === lojaId &&
+    regra.unidadeNegocioId === unidadeId &&
+    regra.statusOrigem === statusAtual
   );
 }
 
@@ -128,8 +132,11 @@ function encontrarRegra(pedido) {
 ====================================================== */
 async function alterarStatusPedido(pedidoId, numeroPedido, statusDestino) {
   console.log(`🔄 Alterando Pedido Nº ${numeroPedido} → Situação ${statusDestino}`);
+console.log(
+  `🚦 STATUS CHANGE CHECK → Pedido ${pedido.numero} | Loja ${pedido.loja.id} | Unidade ${pedido.loja.unidadeNegocio.id} | Status atual ${pedido.situacao.id} | Status destino ${statusDestino}`
+);
 
-  await safeRequest(() =>
+  const response = await safeRequest(() =>
     axios.patch(
       `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}/situacoes/${statusDestino}`,
       null,
@@ -137,9 +144,10 @@ async function alterarStatusPedido(pedidoId, numeroPedido, statusDestino) {
     )
   );
 
-  console.log(`✅ Pedido Nº ${numeroPedido} atualizado com sucesso`);
+  console.log(
+    `✅ Status alterado com sucesso | Pedido ${numeroPedido} | HTTP ${response.status}`
+  );
 }
-
 /* ======================================================
    ⚙️ PROCESSAR PEDIDO (INDIVIDUAL)
 ====================================================== */
