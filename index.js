@@ -21,6 +21,36 @@ const CLIENT_SECRET = process.env.CLIENT_SECRET;
 // ✅ CONTROLE DE REFRESH (GLOBAL)
 let refreshEmAndamento = false;
 
+/* ================= FILA BLING ================= */
+const filaBling = [];
+let processandoFilaBling = false;
+
+async function executarNaFilaBling(fn) {
+  return new Promise((resolve, reject) => {
+    filaBling.push({ fn, resolve, reject });
+    processarFilaBling();
+  });
+}
+
+async function processarFilaBling() {
+  if (processandoFilaBling || filaBling.length === 0) return;
+
+  processandoFilaBling = true;
+  const { fn, resolve, reject } = filaBling.shift();
+
+  try {
+    const resultado = await fn();
+    resolve(resultado);
+  } catch (err) {
+    reject(err);
+  } finally {
+    // 🔒 respeita limite do Bling (3 req/s)
+    await delay(400);
+    processandoFilaBling = false;
+    processarFilaBling();
+  }
+}
+
 /* ================= UTIL ================= */
 const delay = ms => new Promise(r => setTimeout(r, ms));
 const getHeaders = () => ({
@@ -61,34 +91,34 @@ async function talvezAtualizarToken() {
     refreshEmAndamento = false;
   }
 }
+
 /* ================= SafeRequest ================= */
-async function safeRequest(fn, tentouRefresh = false) {
+async function safeRequest(fn, tentouRetry = false) {
   try {
-    // tenta garantir token válido antes da chamada
     await talvezAtualizarToken();
     return await fn();
-
   } catch (error) {
 
-    // 🔒 Fallback ÚNICO para token expirado
-    if (
-      error.response?.status === 401 &&
-      !tentouRefresh
-    ) {
-      console.warn("⚠️ 401 detectado, forçando refresh único do token");
-
-      // força o próximo refresh
+    // 🔁 401 → refresh + retry único
+    if (error.response?.status === 401 && !tentouRetry) {
+      console.warn("⚠️ 401 detectado, renovando token e aguardando...");
       ultimoRefresh = 0;
+      await delay(1500);
       await talvezAtualizarToken();
-
-      // tenta novamente apenas uma vez
       return safeRequest(fn, true);
     }
 
-    // qualquer outro erro sobe
+    // ⏳ 429 → backoff + retry único
+    if (error.response?.status === 429 && !tentouRetry) {
+      console.warn("⚠️ 429 detectado, aguardando backoff...");
+      await delay(8000);
+      return safeRequest(fn, true);
+    }
+
     throw error;
   }
 }
+
 /* ================= OAUTH CALLBACK ================= */
 app.get("/callback", async (req, res) => {
   try {
@@ -148,25 +178,30 @@ async function alterarStatusPedido(pedido, statusDestino) {
     `🚦 ALTERAR STATUS → Pedido ${pedido.numero} | Unidade ${pedido.loja.unidadeNegocio.id} | ${pedido.situacao.id} → ${statusDestino}`
   );
 
-  const r = await safeRequest(() =>
+  const r = await executarNaFilaBling(() =>
+  safeRequest(() =>
     axios.patch(
-      `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/${statusDestino}`,
+      url,
       null,
       { headers: getHeaders() }
     )
-  );
+  )
+);
+
 
   console.log(`✅ Status alterado | HTTP ${r.status}`);
 }
 
 /* ================= PROCESSO ================= */
 async function processarPedidoPorId(id) {
-  const r = await safeRequest(() =>
+  const r = await executarNaFilaBling(() =>
+  safeRequest(() =>
     axios.get(
       `https://api.bling.com.br/Api/v3/pedidos/vendas/${id}`,
       { headers: getHeaders() }
     )
-  );
+  )
+);
 
   const pedido = r.data.data;
   console.log(`🔍 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
@@ -215,12 +250,11 @@ app.post("/webhook", async (req, res) => {
 app.get("/debug-pedido/:numero", async (req, res) => {
   try {
     const numero = req.params.numero;
-    const r = await safeRequest(() =>
-      axios.get(
-        `https://api.bling.com.br/Api/v3/pedidos/vendas?numero=${numero}`,
-        { headers: getHeaders() }
-      )
-    );
+   const r = await executarNaFilaBling(() =>
+  safeRequest(() =>
+    axios.get(url, { headers: getHeaders() })
+  )
+);
 
     const id = r.data.data[0].id;
     const detalhe = await safeRequest(() =>
