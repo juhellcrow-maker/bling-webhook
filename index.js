@@ -18,6 +18,9 @@ let REFRESH_TOKEN = process.env.REFRESH_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 
+// ✅ CONTROLE DE REFRESH (GLOBAL)
+let refreshEmAndamento = false;
+
 /* ================= UTIL ================= */
 const delay = ms => new Promise(r => setTimeout(r, ms));
 const getHeaders = () => ({
@@ -28,28 +31,35 @@ const getHeaders = () => ({
 /* ================= TOKEN ================= */
 // ✅ REFRESH PROATIVO (NUNCA POR ERRO)
 let ultimoRefresh = 0;
-const REFRESH_INTERVAL = 5 * 60 * 60 * 1000; // 5h
+const REFRESH_INTERVAL = 30 * 60 * 1000; // 30min
 
 async function talvezAtualizarToken() {
+  if (refreshEmAndamento) return;
   if (Date.now() - ultimoRefresh < REFRESH_INTERVAL) return;
 
-  const params = new URLSearchParams();
-  params.append("grant_type", "refresh_token");
-  params.append("refresh_token", REFRESH_TOKEN);
-  params.append("client_id", CLIENT_ID);
-  params.append("client_secret", CLIENT_SECRET);
+  refreshEmAndamento = true;
 
-  const r = await axios.post(
-    "https://developer.bling.com.br/api/bling/oauth/token",
-    params,
-    { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-  );
+  try {
+    const params = new URLSearchParams();
+    params.append("grant_type", "refresh_token");
+    params.append("refresh_token", REFRESH_TOKEN);
+    params.append("client_id", CLIENT_ID);
+    params.append("client_secret", CLIENT_SECRET);
 
-  ACCESS_TOKEN = r.data.access_token;
-  REFRESH_TOKEN = r.data.refresh_token;
-  ultimoRefresh = Date.now();
+    const r = await axios.post(
+      "https://developer.bling.com.br/api/bling/oauth/token",
+      params,
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    );
 
-  console.log("✅ Token renovado proativamente");
+    ACCESS_TOKEN = r.data.access_token;
+    REFRESH_TOKEN = r.data.refresh_token;
+    ultimoRefresh = Date.now();
+
+    console.log("✅ Token renovado proativamente");
+  } finally {
+    refreshEmAndamento = false;
+  }
 }
 /* ================= SafeRequest ================= */
 async function safeRequest(fn, tentouRefresh = false) {
