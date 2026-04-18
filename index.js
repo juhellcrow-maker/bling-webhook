@@ -284,7 +284,6 @@ app.get("/debug-pedido/:numero", async (req, res) => {
 
 /* ================= START ================= */
 (async () => {
-  await talvezAtualizarToken();
   console.log("✅ Servidor iniciado");
 })();
 
