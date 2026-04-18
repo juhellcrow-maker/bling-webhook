@@ -251,11 +251,12 @@ async function safeRequest(fn, retry = false) {
 }
 
 /* ================= REGRAS ================= */
-function encontrarRegra(pedido) {
-  return REGRAS_ML_MATRIZ.find(r =>
+function encontrarRegraUnificada(pedido) {
+  return REGRAS.find(r =>
     r.lojaId === pedido.loja.id &&
-    r.unidadeNegocioId === pedido.loja.unidadeNegocio.id &&
-    r.statusOrigem === pedido.situacao.id
+    r.statusOrigem === pedido.situacao.id &&
+    (!r.condicaoUnidade ||
+      r.condicaoUnidade === pedido.loja.unidadeNegocio.id)
   );
 }
 
@@ -290,13 +291,77 @@ async function processarPedidoPorId(id) {
   const pedido = r.data.data;
   console.log(`🔍 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
 
-  if (pedido.loja.id !== ML_MATRIZ) return;
-  if (pedido.situacao.id !== 6) return;
+  // 🔎 BUSCA REGRA UNIFICADA
+  const regra = encontrarRegraUnificada(pedido);
 
-  const regra = encontrarRegra(pedido);
-  if (!regra) return;
+  if (!regra) {
+    console.log("ℹ️ Nenhuma regra encontrada");
+    return;
+  }
 
-  await alterarStatusPedido(pedido, regra.statusDestino);
+  // ✅ REGRA SIMPLES (COMPORTAMENTO ANTIGO)
+  if (regra.tipo === "SIMPLES") {
+    console.log(`✅ Aplicando regra simples: ${regra.nome}`);
+    await alterarStatusPedido(pedido, regra.statusDestino);
+    return;
+  }
+
+  // ✅ REGRA POR ESTOQUE (NOVO COMPORTAMENTO)
+  if (regra.tipo === "ESTOQUE") {
+    console.log(`🧠 Aplicando regra por estoque: ${regra.nome}`);
+    await processarRegraPorEstoque(pedido, regra);
+    return;
+  }
+}
+
+/* ================= PROCESSO REGRA POR ESTOQUE ================= */
+async function processarRegraPorEstoque(pedido, regra) {
+  console.log(`🧠 Avaliando regra por estoque: ${regra.nome}`);
+
+  for (const prioridade of regra.prioridades) {
+    console.log(`📦 Verificando depósito: ${prioridade.nome}`);
+
+    const temSaldo = await pedidoTemSaldoCompletoNoDeposito(
+      pedido,
+      prioridade.depositoId
+    );
+
+    console.log(
+      `📊 Resultado estoque (${prioridade.nome}): ${temSaldo}`
+    );
+
+    // ✅ REGRA ATENDIDA
+    if (temSaldo) {
+      // 🔄 Troca de unidade (se necessário)
+      if (
+        pedido.loja.unidadeNegocio.id !== prioridade.unidadeId
+      ) {
+        console.log(
+          `🔄 Alterando unidade para ${prioridade.unidadeId}`
+        );
+        await alterarUnidadePedido(
+          pedido.id,
+          prioridade.unidadeId
+        );
+      }
+
+      // ✅ ALTERAÇÃO DE STATUS (AQUI!)
+      await alterarStatusPedido(
+        pedido,
+        prioridade.statusDestino
+      );
+
+      console.log(
+        `✅ Regra aplicada com sucesso: ${regra.nome}`
+      );
+      return;
+    }
+  }
+
+  // ❌ Nenhuma prioridade com saldo
+  console.log(
+    "⚠️ Nenhuma prioridade com saldo suficiente — pedido mantido para ação manual"
+  );
 }
 
 /* ================= WEBHOOK ================= */
