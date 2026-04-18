@@ -85,14 +85,53 @@ async function safeRequest(fn, retry = false) {
   try {
     return await fn();
   } catch (err) {
-    if (err.response?.status === 401 && !retry) {
-      console.warn("⚠️ 401 detectado, renovando token");
-      await renovarToken();
-      return safeRequest(fn, true);
+
+    // 🟡 Erro com resposta do Bling
+    if (err.response) {
+      const { status, data, config } = err.response;
+
+      console.error("❌ Erro Bling");
+      console.error("➡️ Status:", status);
+      console.error("➡️ Endpoint:", config?.method?.toUpperCase(), config?.url);
+
+      if (config?.data) {
+        console.error("➡️ Payload enviado:", config.data);
+      }
+
+      if (data) {
+        console.error("➡️ Resposta Bling:", JSON.stringify(data, null, 2));
+      }
+
+      // 🔑 Tratamento especial para 401 (token expirado)
+      if (status === 401 && !retry) {
+        console.warn("⚠️ 401 detectado, renovando token e tentando novamente");
+        await renovarToken();
+        return safeRequest(fn, true);
+      }
+
+      // 🔒 409 (conflito) — muito comum em mudança de status
+      if (status === 409) {
+        console.warn("⚠️ Conflito (409) — pedido pode já ter sido alterado");
+        throw err;
+      }
+
+      // ⚠️ 400, 404, 422 etc → regra / payload incorreto
+      throw err;
     }
+
+    // 🔵 Erro sem resposta (timeout, rede, DNS etc)
+    if (err.request) {
+      console.error("❌ Erro de rede ou timeout");
+      console.error("➡️ Request:", err.request);
+      throw err;
+    }
+
+    // 🔴 Erro inesperado
+    console.error("❌ Erro inesperado:", err.message);
     throw err;
   }
 }
+
 
 /* ================= ESTOQUE ================= */
 async function consultarSaldoProdutoNoDeposito(idProduto, idDeposito) {
@@ -131,34 +170,35 @@ async function pedidoTemSaldoCompletoNoDeposito(pedido, idDeposito) {
 }
 
 /* ================= ALTERAÇÕES ================= */
-async function alterarUnidadePedido(pedidoId, unidadeDestino) {
-  const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}`;
+async function alterarUnidadePedido(pedido) {
+  const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`;
+
+  console.log(
+    `🔄 Alterando unidade do pedido ${pedido.numero} para ${pedido.lojaDestino}`
+  );
+
+  const body = {
+    loja: {
+      id: pedido.loja.id, // ⚠️ OBRIGATÓRIO
+      unidadeNegocio: {
+        id: pedido.lojaDestino
+      }
+    }
+  };
 
   await executarNaFilaBling(() =>
     safeRequest(() =>
-      axios.put(
-        url,
-        { loja: { unidadeNegocio: { id: unidadeDestino } } },
-        { headers: getHeaders() }
-      )
+      axios.put(url, body, {
+        headers: {
+          ...getHeaders(),
+          "Content-Type": "application/json"
+        }
+      })
     )
   );
 
-  console.log(`✅ Unidade alterada para ${unidadeDestino}`);
+  console.log(`✅ Unidade alterada com sucesso`);
 }
-
-async function alterarStatusPedido(pedido, statusDestino) {
-  const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/${statusDestino}`;
-
-  await executarNaFilaBling(() =>
-    safeRequest(() =>
-      axios.patch(url, null, { headers: getHeaders() })
-    )
-  );
-
-  console.log(`✅ Status alterado para ${statusDestino}`);
-}
-
 /* ================= MOTOR DE REGRAS ================= */
 function encontrarRegraUnificada(pedido) {
   return REGRAS.find(r =>
@@ -178,19 +218,24 @@ async function processarRegraPorEstoque(pedido, regra) {
       prioridade.depositoId
     );
 
-    console.log(`📦 ${prioridade.nome} → saldo ok: ${temSaldo}`);
+    console.log(
+      `📦 ${prioridade.nome} → saldo ok: ${temSaldo}`
+    );
 
     if (temSaldo) {
-      await alterarUnidadePedido(pedido.id, prioridade.unidadeId);
+      // passa unidade destino explícita
+      pedido.lojaDestino = prioridade.unidadeId;
+
+      await alterarUnidadePedido(pedido);
       await alterarStatusPedido(pedido, prioridade.statusDestino);
-      console.log(`✅ Regra aplicada: ${regra.nome}`);
+
+      console.log(`✅ Regra aplicada com sucesso`);
       return;
     }
   }
 
   console.log("⚠️ Nenhuma prioridade com saldo — ação manual");
 }
-
 /* ================= PROCESSO ================= */
 async function processarPedidoPorId(id) {
   const r = await executarNaFilaBling(() =>
