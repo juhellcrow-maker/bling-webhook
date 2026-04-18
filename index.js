@@ -354,19 +354,21 @@ async function processarRegraPorEstoque(pedido, regra) {
   );
 }
 /* ================= ALTERA DEPOSITO PARA ATENDER ================= */
-async function alterarUnidadePedido(pedidoId, unidadeDestino) {
-  const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}`;
+async function alterarUnidadePedido(pedido) {
+  const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`;
 
-  console.log(`🔄 Alterando unidade do pedido para ${unidadeDestino}`);
+  console.log(
+    `🔄 Alterando unidade do pedido ${pedido.numero} para ${pedido.loja.unidadeNegocio.id}`
+  );
 
   await executarNaFilaBling(() =>
     safeRequest(() =>
-      axios.patch(
+      axios.put(
         url,
         {
           loja: {
             unidadeNegocio: {
-              id: unidadeDestino
+              id: pedido.loja.unidadeNegocio.id
             }
           }
         },
@@ -374,6 +376,8 @@ async function alterarUnidadePedido(pedidoId, unidadeDestino) {
       )
     )
   );
+
+  console.log("✅ Unidade alterada com sucesso");
 }
 
 /* ================= WEBHOOK ================= */
