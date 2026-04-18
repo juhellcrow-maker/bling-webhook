@@ -18,6 +18,14 @@ const UNIDADE_RIBEIRAO = 2721312;
 const STATUS_RIO_PRETO = 462097;
 const STATUS_RIBEIRAO = 462966;
 
+/* ================= DEPÓSITOS (MAPEAMENTO FIXO) ================= */
+
+// Depósito prioridade – Serv‑Seg Rio Preto
+const DEPOSITO_RIO_PRETO = 14888665295;
+
+// Depósito alternativo – Passalacqua Ribeirão Preto
+const DEPOSITO_RIBEIRAO = 14888631397;
+
 /* ================= INTERNO: DEPÓSITOS ================= */
 app.get("/interno/depositos", async (req, res) => {
   try {
@@ -51,6 +59,104 @@ app.get("/interno/estoque/:idDeposito", async (req, res) => {
     );
 
     res.json(r.data.data);
+  } catch (e) {
+    res.status(500).json({ erro: e.message });
+  }
+});
+
+/* ================= ESTOQUE ================= */
+
+/**
+ * Consulta o saldo de um produto específico em um depósito.
+ * Usa a API oficial do Bling e passa pela fila + safeRequest.
+ * 
+ * @param {number} idProduto - ID do produto no Bling
+ * @param {number} idDeposito - ID do depósito
+ * @returns {number} saldo disponível no depósito
+ */
+async function consultarSaldoProdutoNoDeposito(idProduto, idDeposito) {
+  const r = await executarNaFilaBling(() =>
+    safeRequest(() =>
+      axios.get(
+        `https://api.bling.com.br/Api/v3/estoques/saldos/${idDeposito}`,
+        { headers: getHeaders() }
+      )
+    )
+  );
+
+  const itens = r.data?.data || [];
+
+  const produto = itens.find(
+    item => item.produto && item.produto.id === idProduto
+  );
+
+  // Se o produto não existir no depósito, saldo é considerado zero
+  return produto ? produto.saldo : 0;
+}
+
+/**
+ * Verifica se todos os itens do pedido possuem saldo suficiente
+ * no mesmo depósito.
+ * 
+ * @param {object} pedido - Pedido retornado pelo Bling
+ * @param {number} idDeposito - ID do depósito
+ * @returns {boolean} true se todos os itens tiverem saldo suficiente
+ */
+async function pedidoTemSaldoCompletoNoDeposito(pedido, idDeposito) {
+  for (const item of pedido.itens) {
+    const idProduto = item.produto.id;
+    const quantidadeNecessaria = item.quantidade;
+
+    const saldo = await consultarSaldoProdutoNoDeposito(
+      idProduto,
+      idDeposito
+    );
+
+    if (saldo < quantidadeNecessaria) {
+      console.log(
+        `❌ Sem saldo | Produto ${idProduto} | Depósito ${idDeposito} | Saldo ${saldo} | Necessário ${quantidadeNecessaria}`
+      );
+      return false;
+    }
+  }
+
+  console.log(
+    `✅ Pedido ${pedido.numero} possui saldo completo no depósito ${idDeposito}`
+  );
+  return true;
+}
+
+/* ================= INTERNO: CONSULTA DE ESTOQUE POR PRODUTO ================= */
+
+/**
+ * Endpoint interno para consulta manual de saldo de um produto em um depósito.
+ * Ideal para testes, validação e criação de regras novas.
+ * 
+ * Query params:
+ *  - idProduto
+ *  - idDeposito
+ */
+app.get("/interno/estoque-produto", async (req, res) => {
+  try {
+    const idProduto = Number(req.query.idProduto);
+    const idDeposito = Number(req.query.idDeposito);
+
+    if (!idProduto || !idDeposito) {
+      return res.status(400).json({
+        erro: "Informe idProduto e idDeposito"
+      });
+    }
+
+    const saldo = await consultarSaldoProdutoNoDeposito(
+      idProduto,
+      idDeposito
+    );
+
+    res.json({
+      idProduto,
+      idDeposito,
+      saldo
+    });
   } catch (e) {
     res.status(500).json({ erro: e.message });
   }
