@@ -18,9 +18,6 @@ let REFRESH_TOKEN = process.env.REFRESH_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 
-// ✅ CONTROLE DE REFRESH (GLOBAL)
-let refreshEmAndamento = false;
-
 /* ================= FILA BLING ================= */
 const filaBling = [];
 let processandoFilaBling = false;
@@ -59,14 +56,10 @@ const getHeaders = () => ({
 });
 
 /* ================= TOKEN ================= */
-// ✅ REFRESH PROATIVO (NUNCA POR ERRO)
-let ultimoRefresh = 0;
-const REFRESH_INTERVAL = 30 * 60 * 1000; // 30min
+let refreshEmAndamento = false;
 
-async function talvezAtualizarToken() {
+async function renovarToken() {
   if (refreshEmAndamento) return;
-  if (Date.now() - ultimoRefresh < REFRESH_INTERVAL) return;
-
   refreshEmAndamento = true;
 
   try {
@@ -84,9 +77,8 @@ async function talvezAtualizarToken() {
 
     ACCESS_TOKEN = r.data.access_token;
     REFRESH_TOKEN = r.data.refresh_token;
-    ultimoRefresh = Date.now();
 
-    console.log("✅ Token renovado proativamente");
+    console.log("✅ Token renovado após 401");
   } finally {
     refreshEmAndamento = false;
   }
@@ -95,24 +87,14 @@ async function talvezAtualizarToken() {
 /* ================= SafeRequest ================= */
 async function safeRequest(fn, tentouRetry = false) {
   try {
-    await talvezAtualizarToken();
     return await fn();
   } catch (error) {
 
-    // 🔁 401 → refresh + retry único
     if (error.response?.status === 401 && !tentouRetry) {
-      console.warn("⚠️ 401 detectado, renovando token e aguardando...");
-      ultimoRefresh = 0;
-      await delay(1500);
-      await talvezAtualizarToken();
-      return safeRequest(fn, true);
-    }
+      console.warn("⚠️ 401 detectado, renovando token...");
 
-    // ⏳ 429 → backoff + retry único
-    if (error.response?.status === 429 && !tentouRetry) {
-      console.warn("⚠️ 429 detectado, aguardando backoff...");
-      await delay(8000);
-      return safeRequest(fn, true);
+      await renovarToken();          // ✅ refresh UMA ÚNICA VEZ
+      return safeRequest(fn, true);  // ✅ refaz a request
     }
 
     throw error;
