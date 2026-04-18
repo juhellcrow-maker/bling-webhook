@@ -67,33 +67,34 @@ app.get("/interno/estoque/:idDeposito", async (req, res) => {
 /* ================= ESTOQUE ================= */
 
 /**
- * Consulta o saldo de um produto específico em um depósito.
- * Usa a API oficial do Bling e passa pela fila + safeRequest.
- * 
- * @param {number} idProduto - ID do produto no Bling
- * @param {number} idDeposito - ID do depósito
- * @returns {number} saldo disponível no depósito
+ * Consulta o saldo de UM produto em UM depósito no Bling.
+ * Usa o parâmetro oficial `idsProdutos[]`.
+ *
+ * @param {number} idProduto
+ * @param {number} idDeposito
+ * @returns {number} saldo disponível
  */
 async function consultarSaldoProdutoNoDeposito(idProduto, idDeposito) {
   const r = await executarNaFilaBling(() =>
     safeRequest(() =>
       axios.get(
         `https://api.bling.com.br/Api/v3/estoques/saldos/${idDeposito}`,
-        { headers: getHeaders() }
+        {
+          headers: getHeaders(),
+          params: {
+            "idsProdutos[]": idProduto
+          }
+        }
       )
     )
   );
 
   const itens = r.data?.data || [];
 
-  const produto = itens.find(
-    item => item.produto && item.produto.id === idProduto
-  );
-
-  // Se o produto não existir no depósito, saldo é considerado zero
-  return produto ? produto.saldo : 0;
+  return itens.length > 0
+    ? itens[0].saldoFisicoTotal ?? itens[0].saldo ?? 0
+    : 0;
 }
-
 /**
  * Verifica se todos os itens do pedido possuem saldo suficiente
  * no mesmo depósito.
