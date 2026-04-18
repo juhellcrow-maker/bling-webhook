@@ -9,6 +9,53 @@ app.use(express.json());
 const ML_MATRIZ = 204560827;
 const WEBHOOK_ATIVO = true;
 
+/* ================= VARIAVEIS AMZ MATRIZ ================= */
+const AMZ_MATRIZ = 204782103;
+
+const UNIDADE_RIO_PRETO = 2721311;
+const UNIDADE_RIBEIRAO = 2721312;
+
+const STATUS_RIO_PRETO = 462097;
+const STATUS_RIBEIRAO = 462966;
+
+/* ================= INTERNO: DEPÓSITOS ================= */
+app.get("/interno/depositos", async (req, res) => {
+  try {
+    const r = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.get(
+          "https://api.bling.com.br/Api/v3/depositos",
+          { headers: getHeaders() }
+        )
+      )
+    );
+
+    res.json(r.data.data);
+  } catch (e) {
+    res.status(500).json({ erro: e.message });
+  }
+});
+
+/* ================= INTERNO: ESTOQUE POR DEPÓSITO ================= */
+app.get("/interno/estoque/:idDeposito", async (req, res) => {
+  try {
+    const { idDeposito } = req.params;
+
+    const r = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.get(
+          `https://api.bling.com.br/Api/v3/estoques/saldos/${idDeposito}`,
+          { headers: getHeaders() }
+        )
+      )
+    );
+
+    res.json(r.data.data);
+  } catch (e) {
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 /* ================= OAUTH ================= */
 let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 let REFRESH_TOKEN = process.env.REFRESH_TOKEN;
