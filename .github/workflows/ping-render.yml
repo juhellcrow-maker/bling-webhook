@@ -2,15 +2,13 @@ name: Ping Render
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # a cada 5 minutos
-  workflow_dispatch:        # permite rodar manualmente
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Ping Render Health Endpoint
-        run: |
-          curl -s https://bling-webhook.onrender.com/health
-``
+      - name: Ping Render health endpoint
+        run: curl -s https://bling-webhook.onrender.com/health
