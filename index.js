@@ -136,6 +136,7 @@ async function pedidoTemSaldoCompletoNoDeposito(pedido, idDeposito) {
  *  - idProduto
  *  - idDeposito
  */
+
 app.get("/interno/estoque-produto", async (req, res) => {
   try {
     const idProduto = Number(req.query.idProduto);
@@ -161,6 +162,7 @@ app.get("/interno/estoque-produto", async (req, res) => {
     res.status(500).json({ erro: e.message });
   }
 });
+
 
 /* ================= OAUTH ================= */
 let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
