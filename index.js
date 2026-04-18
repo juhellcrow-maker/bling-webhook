@@ -170,20 +170,30 @@ async function pedidoTemSaldoCompletoNoDeposito(pedido, idDeposito) {
 }
 
 /* ================= ALTERAÇÕES ================= */
-async function alterarUnidadePedido(pedido) {
+async function alterarUnidadePedidoComItens(pedido, unidadeDestino) {
   const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`;
 
   console.log(
-    `🔄 Alterando unidade do pedido ${pedido.numero} para ${pedido.lojaDestino}`
+    `🔄 Alterando unidade do pedido ${pedido.numero} para ${unidadeDestino} (reenviando itens)`
   );
+
+  // 🔁 Reenviar os itens exatamente como vieram
+  const itens = pedido.itens.map(item => ({
+    produto: { id: item.produto.id },
+    quantidade: item.quantidade,
+    valor: item.valor,
+    descricao: item.descricao,
+    unidade: item.unidade
+  }));
 
   const body = {
     loja: {
-      id: pedido.loja.id, // ⚠️ OBRIGATÓRIO
+      id: pedido.loja.id,
       unidadeNegocio: {
-        id: pedido.lojaDestino
+        id: unidadeDestino
       }
-    }
+    },
+    itens
   };
 
   await executarNaFilaBling(() =>
@@ -197,7 +207,7 @@ async function alterarUnidadePedido(pedido) {
     )
   );
 
-  console.log(`✅ Unidade alterada com sucesso`);
+  console.log("✅ Unidade alterada com sucesso (com itens)");
 }
 /* ================= MOTOR DE REGRAS ================= */
 function encontrarRegraUnificada(pedido) {
@@ -227,7 +237,9 @@ async function processarRegraPorEstoque(pedido, regra) {
       pedido.lojaDestino = prioridade.unidadeId;
 
       await alterarUnidadePedido(pedido);
-      await alterarStatusPedido(pedido, prioridade.statusDestino);
+      await alterarUnidadePedidoComItens(pedido,prioridade.unidadeId);
+      await alterarStatusPedido(pedido,prioridade.statusDestino);
+
 
       console.log(`✅ Regra aplicada com sucesso`);
       return;
@@ -267,6 +279,54 @@ async function processarPedidoPorId(id) {
     await processarRegraPorEstoque(pedido, regra);
   }
 }
+
+/* ================= DEBUG PEDIDO ================= */
+/**
+ * Endpoint de debug para inspecionar pedidos do Bling.
+ * NÃO interfere na automação.
+ * Essencial para validar regras, estoque e estrutura de dados.
+ */
+app.get("/debug-pedido/:numero", async (req, res) => {
+  try {
+    const numero = req.params.numero;
+
+    console.log(`🧪 DEBUG → Buscando pedido ${numero}`);
+
+    // 1️⃣ Busca pedido pelo número
+    const busca = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.get(
+          `https://api.bling.com.br/Api/v3/pedidos/vendas?numero=${numero}`,
+          { headers: getHeaders() }
+        )
+      )
+    );
+
+    if (!busca.data.data || busca.data.data.length === 0) {
+      return res
+        .status(404)
+        .json({ erro: "Pedido não encontrado no Bling" });
+    }
+
+    // 2️⃣ Pega o ID do pedido
+    const idPedido = busca.data.data[0].id;
+
+    // 3️⃣ Busca detalhes completos do pedido
+    const detalhe = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.get(
+          `https://api.bling.com.br/Api/v3/pedidos/vendas/${idPedido}`,
+          { headers: getHeaders() }
+        )
+      )
+    );
+
+    res.json(detalhe.data.data);
+  } catch (e) {
+    console.error("❌ Erro no debug-pedido:", e.message);
+    res.status(500).json({ erro: e.message });
+  }
+});
 
 /* ================= WEBHOOK ================= */
 app.post("/webhook", async (req, res) => {
