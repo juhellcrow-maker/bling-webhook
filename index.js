@@ -45,7 +45,7 @@ async function processarFila() {
   } catch (e) {
     reject(e);
   } finally {
-    await delay(400); // 3 req/s
+    await delay(400); // limite Bling
     processandoFila = false;
     processarFila();
   }
@@ -85,53 +85,20 @@ async function safeRequest(fn, retry = false) {
   try {
     return await fn();
   } catch (err) {
-
-    // 🟡 Erro com resposta do Bling
     if (err.response) {
       const { status, data, config } = err.response;
+      console.error("❌ Erro Bling", status, config?.method, config?.url);
+      if (config?.data) console.error("➡️ Payload:", config.data);
+      if (data) console.error("➡️ Resposta:", JSON.stringify(data, null, 2));
 
-      console.error("❌ Erro Bling");
-      console.error("➡️ Status:", status);
-      console.error("➡️ Endpoint:", config?.method?.toUpperCase(), config?.url);
-
-      if (config?.data) {
-        console.error("➡️ Payload enviado:", config.data);
-      }
-
-      if (data) {
-        console.error("➡️ Resposta Bling:", JSON.stringify(data, null, 2));
-      }
-
-      // 🔑 Tratamento especial para 401 (token expirado)
       if (status === 401 && !retry) {
-        console.warn("⚠️ 401 detectado, renovando token e tentando novamente");
         await renovarToken();
         return safeRequest(fn, true);
       }
-
-      // 🔒 409 (conflito) — muito comum em mudança de status
-      if (status === 409) {
-        console.warn("⚠️ Conflito (409) — pedido pode já ter sido alterado");
-        throw err;
-      }
-
-      // ⚠️ 400, 404, 422 etc → regra / payload incorreto
-      throw err;
     }
-
-    // 🔵 Erro sem resposta (timeout, rede, DNS etc)
-    if (err.request) {
-      console.error("❌ Erro de rede ou timeout");
-      console.error("➡️ Request:", err.request);
-      throw err;
-    }
-
-    // 🔴 Erro inesperado
-    console.error("❌ Erro inesperado:", err.message);
     throw err;
   }
 }
-
 
 /* ================= ESTOQUE ================= */
 async function consultarSaldoProdutoNoDeposito(idProduto, idDeposito) {
@@ -159,63 +126,30 @@ async function pedidoTemSaldoCompletoNoDeposito(pedido, idDeposito) {
       item.produto.id,
       idDeposito
     );
-
-    if (saldo < item.quantidade) {
-      console.log(`❌ Sem saldo do produto ${item.produto.id}`);
-      return false;
-    }
+    if (saldo < item.quantidade) return false;
   }
-  console.log(`✅ Pedido ${pedido.numero} possui saldo no depósito ${idDeposito}`);
   return true;
 }
 
-/* ================= ALTERAÇÕES ================= */
-async function alterarUnidadePedidoComItens(pedido, unidadeDestino) {
-  const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}`;
-
-  console.log(
-    `🔄 Alterando unidade do pedido ${pedido.numero} para ${unidadeDestino} (reenviando itens)`
-  );
-
-  // 🔁 Reenviar os itens exatamente como vieram
-  const itens = pedido.itens.map(item => ({
-    produto: { id: item.produto.id },
-    quantidade: item.quantidade,
-    valor: item.valor,
-    descricao: item.descricao,
-    unidade: item.unidade
-  }));
-
-  const body = {
-    loja: {
-      id: pedido.loja.id,
-      unidadeNegocio: {
-        id: unidadeDestino
-      }
-    },
-    itens
-  };
+/* ================= LANÇAR ESTOQUE ================= */
+async function lancarEstoquePedido(pedidoId, idDeposito) {
+  const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}/lancar-estoque/${idDeposito}`;
+  console.log(`📦 Lançando estoque do pedido ${pedidoId} no depósito ${idDeposito}`);
 
   await executarNaFilaBling(() =>
     safeRequest(() =>
-      axios.put(url, body, {
-        headers: {
-          ...getHeaders(),
-          "Content-Type": "application/json"
-        }
-      })
+      axios.post(url, null, { headers: getHeaders() })
     )
   );
 
-  console.log("✅ Unidade alterada com sucesso (com itens)");
+  console.log("✅ Estoque lançado com sucesso");
 }
+
 /* ================= MOTOR DE REGRAS ================= */
 function encontrarRegraUnificada(pedido) {
   return REGRAS.find(r =>
     r.lojaId === pedido.loja.id &&
-    r.statusOrigem === pedido.situacao.id &&
-    (!r.condicaoUnidade ||
-      r.condicaoUnidade === pedido.loja?.unidadeNegocio?.id)
+    r.statusOrigem === pedido.situacao.id
   );
 }
 
@@ -228,26 +162,36 @@ async function processarRegraPorEstoque(pedido, regra) {
       prioridade.depositoId
     );
 
-    console.log(
-      `📦 ${prioridade.nome} → saldo ok: ${temSaldo}`
-    );
+    console.log(`📦 ${prioridade.nome} → saldo ok: ${temSaldo}`);
 
     if (temSaldo) {
-      // passa unidade destino explícita
-      pedido.lojaDestino = prioridade.unidadeId;
+      if (prioridade.lancarEstoque) {
+        await lancarEstoquePedido(pedido.id, prioridade.depositoId);
+      }
 
-      await alterarUnidadePedido(pedido);
-      await alterarUnidadePedidoComItens(pedido,prioridade.unidadeId);
-      await alterarStatusPedido(pedido,prioridade.statusDestino);
-
-
-      console.log(`✅ Regra aplicada com sucesso`);
+      await alterarStatusPedido(pedido, prioridade.statusDestino);
+      console.log("✅ Regra aplicada com sucesso");
       return;
     }
   }
 
   console.log("⚠️ Nenhuma prioridade com saldo — ação manual");
 }
+
+/* ================= STATUS ================= */
+async function alterarStatusPedido(pedido, statusDestino) {
+  const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/${statusDestino}`;
+  console.log(`🚦 Alterando status do pedido ${pedido.numero} → ${statusDestino}`);
+
+  const r = await executarNaFilaBling(() =>
+    safeRequest(() =>
+      axios.patch(url, null, { headers: getHeaders() })
+    )
+  );
+
+  console.log(`✅ Status alterado | HTTP ${r.status}`);
+}
+
 /* ================= PROCESSO ================= */
 async function processarPedidoPorId(id) {
   const r = await executarNaFilaBling(() =>
@@ -263,10 +207,7 @@ async function processarPedidoPorId(id) {
   console.log(`📦 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
 
   const regra = encontrarRegraUnificada(pedido);
-  if (!regra) {
-    console.log("ℹ️ Nenhuma regra aplicável");
-    return;
-  }
+  if (!regra) return;
 
   console.log(`🧠 Aplicando regra: ${regra.nome}`);
 
@@ -281,18 +222,9 @@ async function processarPedidoPorId(id) {
 }
 
 /* ================= DEBUG PEDIDO ================= */
-/**
- * Endpoint de debug para inspecionar pedidos do Bling.
- * NÃO interfere na automação.
- * Essencial para validar regras, estoque e estrutura de dados.
- */
 app.get("/debug-pedido/:numero", async (req, res) => {
   try {
     const numero = req.params.numero;
-
-    console.log(`🧪 DEBUG → Buscando pedido ${numero}`);
-
-    // 1️⃣ Busca pedido pelo número
     const busca = await executarNaFilaBling(() =>
       safeRequest(() =>
         axios.get(
@@ -302,16 +234,12 @@ app.get("/debug-pedido/:numero", async (req, res) => {
       )
     );
 
-    if (!busca.data.data || busca.data.data.length === 0) {
-      return res
-        .status(404)
-        .json({ erro: "Pedido não encontrado no Bling" });
+    if (!busca.data.data?.length) {
+      return res.status(404).json({ erro: "Pedido não encontrado" });
     }
 
-    // 2️⃣ Pega o ID do pedido
     const idPedido = busca.data.data[0].id;
 
-    // 3️⃣ Busca detalhes completos do pedido
     const detalhe = await executarNaFilaBling(() =>
       safeRequest(() =>
         axios.get(
@@ -323,7 +251,6 @@ app.get("/debug-pedido/:numero", async (req, res) => {
 
     res.json(detalhe.data.data);
   } catch (e) {
-    console.error("❌ Erro no debug-pedido:", e.message);
     res.status(500).json({ erro: e.message });
   }
 });
@@ -334,10 +261,10 @@ app.post("/webhook", async (req, res) => {
 
   try {
     const idPedido = req.body?.data?.id;
-    if (!idPedido) return res.status(200).send("Evento inválido");
-
-    console.log("🔔 Webhook recebido");
-    await processarPedidoPorId(idPedido);
+    if (idPedido) {
+      console.log("🔔 Webhook recebido");
+      await processarPedidoPorId(idPedido);
+    }
   } catch (e) {
     console.error("❌ Erro no webhook:", e.message);
   }
@@ -346,9 +273,7 @@ app.post("/webhook", async (req, res) => {
 });
 
 /* ================= SAÚDE ================= */
-app.get("/health", (req, res) => {
-  res.send("OK");
-});
+app.get("/health", (_, res) => res.send("OK"));
 
 /* ================= START ================= */
 app.listen(process.env.PORT || 3000, () => {
