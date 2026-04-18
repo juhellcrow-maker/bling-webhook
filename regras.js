@@ -63,10 +63,16 @@ export default [
 
   {
     nome: "ML FILIAL - decisão por estoque",
-    lojaId: 205415213,
+    lojaId: 204964661,
     statusOrigem: 6,
     tipo: "ESTOQUE",
     prioridades: [
+      {
+        nome: "SS Rio Preto",
+        depositoId: 14888665295,
+        statusDestino: 462097,
+        lancarEstoque: false
+      },
       {
         nome: "PS Ribeirão",
         depositoId: 14888631397,
@@ -83,10 +89,16 @@ export default [
 
   {
     nome: "AMZ FILIAL - decisão por estoque",
-    lojaId: 205918799,
+    lojaId: 205415213,
     statusOrigem: 6,
     tipo: "ESTOQUE",
-    prioridades: [
+     prioridades: [
+      {
+        nome: "SS Rio Preto",
+        depositoId: 14888665295,
+        statusDestino: 462097,
+        lancarEstoque: false
+      },
       {
         nome: "PS Ribeirão",
         depositoId: 14888631397,
@@ -94,6 +106,4 @@ export default [
         lancarEstoque: true
       }
     ]
-  }
-
-];
+  },
