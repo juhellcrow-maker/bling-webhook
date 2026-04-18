@@ -1,5 +1,6 @@
 import express from "express";
 import axios from "axios";
+import REGRAS from "./regras.js";
 import REGRAS_ML_MATRIZ from "./regras_ml_matriz.js";
 
 const app = express();
@@ -326,41 +327,52 @@ async function processarRegraPorEstoque(pedido, regra) {
       prioridade.depositoId
     );
 
-    console.log(
-      `📊 Resultado estoque (${prioridade.nome}): ${temSaldo}`
-    );
+    console.log(`📊 Resultado estoque ${prioridade.nome}: ${temSaldo}`);
 
-    // ✅ REGRA ATENDIDA
     if (temSaldo) {
-      // 🔄 Troca de unidade (se necessário)
-      if (
-        pedido.loja.unidadeNegocio.id !== prioridade.unidadeId
-      ) {
-        console.log(
-          `🔄 Alterando unidade para ${prioridade.unidadeId}`
-        );
+      // troca unidade se necessário
+      if (pedido.loja.unidadeNegocio.id !== prioridade.unidadeId) {
         await alterarUnidadePedido(
           pedido.id,
           prioridade.unidadeId
         );
       }
 
-      // ✅ ALTERAÇÃO DE STATUS (AQUI!)
+      // ✅ ALTERA STATUS AQUI
       await alterarStatusPedido(
         pedido,
         prioridade.statusDestino
       );
 
-      console.log(
-        `✅ Regra aplicada com sucesso: ${regra.nome}`
-      );
+      console.log(`✅ Regra aplicada: ${regra.nome}`);
       return;
     }
   }
 
-  // ❌ Nenhuma prioridade com saldo
   console.log(
     "⚠️ Nenhuma prioridade com saldo suficiente — pedido mantido para ação manual"
+  );
+}
+/* ================= ALTERA DEPOSITO PARA ATENDER ================= */
+async function alterarUnidadePedido(pedidoId, unidadeDestino) {
+  const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}`;
+
+  console.log(`🔄 Alterando unidade do pedido para ${unidadeDestino}`);
+
+  await executarNaFilaBling(() =>
+    safeRequest(() =>
+      axios.patch(
+        url,
+        {
+          loja: {
+            unidadeNegocio: {
+              id: unidadeDestino
+            }
+          }
+        },
+        { headers: getHeaders() }
+      )
+    )
   );
 }
 
