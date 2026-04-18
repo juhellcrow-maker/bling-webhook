@@ -250,17 +250,29 @@ app.post("/webhook", async (req, res) => {
 app.get("/debug-pedido/:numero", async (req, res) => {
   try {
     const numero = req.params.numero;
-   const r = await executarNaFilaBling(() =>
-  safeRequest(() =>
-    axios.get(url, { headers: getHeaders() })
-  )
-);
 
+    // 1️⃣ Busca pedido pelo número
+    const urlBusca = `https://api.bling.com.br/Api/v3/pedidos/vendas?numero=${numero}`;
+
+    const r = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.get(urlBusca, { headers: getHeaders() })
+      )
+    );
+
+    if (!r.data.data || r.data.data.length === 0) {
+      return res.status(404).json({ erro: "Pedido não encontrado" });
+    }
+
+    // 2️⃣ Pega o ID do pedido
     const id = r.data.data[0].id;
-    const detalhe = await safeRequest(() =>
-      axios.get(
-        `https://api.bling.com.br/Api/v3/pedidos/vendas/${id}`,
-        { headers: getHeaders() }
+
+    // 3️⃣ Busca detalhes do pedido
+    const urlDetalhe = `https://api.bling.com.br/Api/v3/pedidos/vendas/${id}`;
+
+    const detalhe = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.get(urlDetalhe, { headers: getHeaders() })
       )
     );
 
