@@ -285,6 +285,20 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
+/* ================= OAUTH START ================= */
+app.get("/oauth/start", (req, res) => {
+  const redirectUri = encodeURIComponent(process.env.REDIRECT_URI);
+
+  const url =
+    `https://www.bling.com.br/Api/v3/oauth/authorize` +
+    `?response_type=code` +
+    `&client_id=${CLIENT_ID}` +
+    `&redirect_uri=${redirectUri}` +
+    `&state=bling_auth`;
+
+  res.redirect(url);
+});
+
 /* ================= OAUTH CALLBACK ================= */
 app.get("/callback", async (req, res) => {
   try {
@@ -317,6 +331,23 @@ app.get("/callback", async (req, res) => {
     res.status(500).send("Erro ao processar callback OAuth");
   }
 });
+
+/* ================= TOKEN AUTO-RENEW ================= */
+
+// 10 minutos
+const TOKEN_REFRESH_INTERVAL = 10 * 60 * 1000;
+
+setInterval(async () => {
+  if (!REFRESH_TOKEN) {
+    console.warn("⚠️ Refresh token ausente, não foi possível renovar");
+    return;
+  }
+
+  console.log("⏳ Renovação automática de token em execução");
+  await renovarToken();
+
+}, TOKEN_REFRESH_INTERVAL);
+
 /* ================= START ================= */
 app.listen(process.env.PORT || 3000, () => {
   console.log("✅ Servidor iniciado");
