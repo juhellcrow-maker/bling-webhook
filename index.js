@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { loadTokens, saveTokens } from "./tokenStore.js";
 import { enviarWhatsAppTeste } from "./notificacoes/whatsapp.js";
 const app = express();
+const mensagem = montarMensagemPedido(pedido);
 app.use(express.json());
 
 /* ================= Envio Mensagem
@@ -502,7 +503,6 @@ Após a confirmação o pedido será faturado automaticamente.`
   );
 }
 
-const mensagem = montarMensagemPedido(pedido);
 
 // telefone do responsável pelo depósito
 const telefoneDeposito = "5516993105050"; // ajuste se necessário
