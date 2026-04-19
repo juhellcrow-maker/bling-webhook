@@ -233,6 +233,10 @@ async function processarPedidoPorId(id) {
   );
 
   const pedido = r.data.data;
+  
+// ✅ NOVO PASSO: registrar pedido se for ML + Serv-Seg
+  await registrarPedidoConfirmacao(pedido);
+
   console.log(`📦 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
 
   const regra = encontrarRegraUnificada(pedido);
@@ -380,6 +384,73 @@ app.get("/callback", async (req, res) => {
     res.status(500).send("Erro ao processar callback OAuth");
   }
 });
+
+/* ================= Registra pedido no BD ================= */
+
+import { randomUUID } from "crypto";
+import { pool } from "./db.js";
+
+/**
+ * Registra pedido Mercado Livre na tabela pedido_confirmacao
+ * quando entra no status 462966
+ */
+async function registrarPedidoConfirmacao(pedido) {
+  // ✅ Só Mercado Livre
+  if (pedido.loja.id !== 204560827 && pedido.loja.id !== 204964661) {
+    return;
+  }
+
+  // ✅ Só status Serv-Seg Rio Preto
+  if (pedido.situacao.id !== 462966) {
+    return;
+  }
+
+  const pedidoId = pedido.id;
+  const numeroPedido = pedido.numero;
+
+  // 1️⃣ Verifica se o pedido já está registrado
+  const existe = await pool.query(
+    "SELECT 1 FROM pedido_confirmacao WHERE pedido_id = $1",
+    [pedidoId]
+  );
+
+  if (existe.rowCount > 0) {
+    console.log(`ℹ️ Pedido ${numeroPedido} já registrado para confirmação`);
+    return;
+  }
+
+  // 2️⃣ Gera token único de confirmação
+  const tokenConfirmacao = randomUUID();
+
+  // 3️⃣ Insere no banco
+  await pool.query(
+    `
+    INSERT INTO pedido_confirmacao
+    (
+      pedido_id,
+      numero_pedido,
+      marketplace,
+      deposito_codigo,
+      status_bling,
+      token_confirmacao
+    )
+    VALUES
+    ($1, $2, $3, $4, $5, $6)
+    `,
+    [
+      pedidoId,
+      numeroPedido,
+      "ML",
+      "SERVSEG_RP",
+      462966,
+      tokenConfirmacao
+    ]
+  );
+
+  console.log(
+    `✅ Pedido ${numeroPedido} registrado para confirmação (token ${tokenConfirmacao})`
+  );
+}
 
 
 /* ================= TOKEN AUTO-RENEW ================= */
