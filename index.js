@@ -324,21 +324,8 @@ app.get("/health/token", async (req, res) => {
   }
 });
 
-/* ================= OAUTH START ================= */
-app.get("/oauth/start", (req, res) => {
-  const redirectUri = encodeURIComponent(process.env.REDIRECT_URI);
 
-  const url =
-    `https://www.bling.com.br/Api/v3/oauth/authorize` +
-    `?response_type=code` +
-    `&client_id=${CLIENT_ID}` +
-    `&redirect_uri=${redirectUri}` +
-    `&state=bling_auth`;
-
-  res.redirect(url);
-}); 
-
-/* ================= OAUTH CALLBACK ================= */
+/* ================= CALLBACK ================= */
 app.get("/callback", async (req, res) => {
   try {
     const code = req.query.code;
