@@ -5,31 +5,54 @@ import REGRAS from "./regras.js";
 import { randomUUID } from "crypto";
 import { loadTokens, saveTokens } from "./tokenStore.js";
 import { enviarWhatsAppTeste } from "./notificacoes/whatsapp.js";
-
-/* ================= APP ================= */
 const app = express();
 app.use(express.json());
 
-/* ================= CONFIG ================= */
-const WEBHOOK_ATIVO = true;
+/* ================= Envio Mensagem
+app.get("/teste-whatsapp", async (req, res) => {
+  try {
+    // Coloque SEU número pessoal (somente números, com DDI)
+    const telefone = "5516993105050";
 
-/* ================= OAUTH - VARIÁVEIS ================= */
-let ACCESS_TOKEN = process.env.ACCESS_TOKEN || null;
-let REFRESH_TOKEN = process.env.REFRESH_TOKEN || null;
+    const mensagem =
+      "📦 Teste WhatsApp Cloud API\n\nSe você recebeu isso, a integração está funcionando ✅";
+
+    await enviarWhatsAppTeste(telefone, mensagem);
+
+    res.json({ status: "ok", mensagem: "WhatsApp enviado" });
+  } catch (e) {
+    console.error("❌ Erro WhatsApp:", e.response?.data || e.message);
+    res.status(500).json({ error: "Erro ao enviar WhatsApp" });
+  }
+});
+ ================= */
+
+/* ================= OAUTH ================= */
+let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
+let REFRESH_TOKEN = process.env.REFRESH_TOKEN;
 let ultimoRefreshToken = 0;
 let ultimoRefreshStatus = "unknown";
 let refreshEmAndamento = false;
-
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
-
-/* ================= RESTAURA TOKENS ================= */
 const stored = loadTokens();
 if (stored) {
   ACCESS_TOKEN = stored.access_token;
   REFRESH_TOKEN = stored.refresh_token;
   console.log("🔐 Tokens restaurados do storage");
 }
+// Após carregar tokens persistidos
+if (REFRESH_TOKEN) {
+  console.log("🔁 Executando refresh inicial no startup");
+  renovarToken();
+}
+
+
+
+/* ================= CONFIG ================= */
+const WEBHOOK_ATIVO = true;
+
+
 
 /* ================= UTIL ================= */
 const delay = ms => new Promise(r => setTimeout(r, ms));
@@ -39,7 +62,37 @@ const getHeaders = () => ({
   Accept: "application/json"
 });
 
-/* ================= TOKEN (REATIVO + PERSISTÊNCIA) ================= */
+/* ================= FILA BLING ================= */
+const filaBling = [];
+let processandoFila = false;
+
+async function executarNaFilaBling(fn) {
+  return new Promise((resolve, reject) => {
+    filaBling.push({ fn, resolve, reject });
+    processarFila();
+  });
+}
+
+async function processarFila() {
+  if (processandoFila || filaBling.length === 0) return;
+
+  processandoFila = true;
+  const { fn, resolve, reject } = filaBling.shift();
+
+  try {
+    const r = await fn();
+    resolve(r);
+  } catch (e) {
+    reject(e);
+  } finally {
+    await delay(400); // limite Bling
+    processandoFila = false;
+    processarFila();
+  }
+}
+
+/* ================= TOKEN (REATIVO + ESTADO + PERSISTÊNCIA) ================= */
+
 async function renovarToken() {
   if (refreshEmAndamento) return;
   refreshEmAndamento = true;
@@ -57,124 +110,146 @@ async function renovarToken() {
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
     );
 
+    // ✅ 1️⃣ Atualiza os tokens em memória
     ACCESS_TOKEN = r.data.access_token;
     REFRESH_TOKEN = r.data.refresh_token;
 
+    // ✅ 2️⃣ PERSISTE OS TOKENS (PONTO CRÍTICO)
     saveTokens({
       access_token: ACCESS_TOKEN,
       refresh_token: REFRESH_TOKEN
     });
 
+    // ✅ 3️⃣ Atualiza estado do OAuth (health / monitor)
     ultimoRefreshToken = Date.now();
     ultimoRefreshStatus = "ok";
 
     console.log("🔁 Token renovado automaticamente");
+
   } catch (e) {
     ultimoRefreshStatus = "error";
-    console.error("❌ Falha ao renovar token:", e.response?.data || e.message);
+    console.error(
+      "❌ Falha ao renovar token:",
+      e.response?.data || e.message
+    );
   } finally {
     refreshEmAndamento = false;
   }
 }
 
-/* ================= REFRESH INICIAL ================= */
-if (REFRESH_TOKEN) {
-  console.log("🔁 Executando refresh inicial no startup");
-  renovarToken();
-}
-
-/* ================= FILA BLING ================= */
-const filaBling = [];
-let processandoFila = false;
-
-async function executarNaFilaBling(fn) {
-  return new Promise((resolve, reject) => {
-    filaBling.push({ fn, resolve, reject });
-    processarFila();
-  });
-}
-
-async function processarFila() {
-  if (processandoFila || filaBling.length === 0) return;
-  processandoFila = true;
-  const { fn, resolve, reject } = filaBling.shift();
-
-  try {
-    const r = await fn();
-    resolve(r);
-  } catch (e) {
-    reject(e);
-  } finally {
-    await delay(400);
-    processandoFila = false;
-    processarFila();
-  }
-}
-
-/* ================= SAFE REQUEST ================= */
+/* ================= SafeRequest ================= */
 async function safeRequest(fn, retry = false) {
   try {
     return await fn();
   } catch (err) {
-    if (err.response?.status === 401 && !retry) {
-      await renovarToken();
-      return safeRequest(fn, true);
+    if (err.response) {
+      const { status, data, config } = err.response;
+      console.error("❌ Erro Bling", status, config?.method, config?.url);
+      if (config?.data) console.error("➡️ Payload:", config.data);
+      if (data) console.error("➡️ Resposta:", JSON.stringify(data, null, 2));
+
+      if (status === 401 && !retry) {
+        await renovarToken();
+        return safeRequest(fn, true);
+      }
     }
     throw err;
   }
 }
 
-/* ================= MENSAGEM WHATSAPP ================= */
-function montarMensagemPedido(pedido) {
-  const itens = pedido.itens
-    .map(i => `• ${i.produto.nome} — ${i.quantidade} un`)
-    .join("\n");
+/* ================= ESTOQUE ================= */
+async function consultarSaldoProdutoNoDeposito(idProduto, idDeposito) {
+  const r = await executarNaFilaBling(() =>
+    safeRequest(() =>
+      axios.get(
+        `https://api.bling.com.br/Api/v3/estoques/saldos/${idDeposito}`,
+        {
+          headers: getHeaders(),
+          params: { "idsProdutos[]": idProduto }
+        }
+      )
+    )
+  );
 
-  return (
-`📦 *NOVO PEDIDO – MERCADO LIVRE*
+  const itens = r.data?.data || [];
+  return itens.length
+    ? itens[0].saldoFisicoTotal ?? itens[0].saldo ?? 0
+    : 0;
+}
 
-Pedido: *${pedido.numero}*
-Depósito: *Serv-Seg Rio Preto*
+async function pedidoTemSaldoCompletoNoDeposito(pedido, idDeposito) {
+  for (const item of pedido.itens) {
+    const saldo = await consultarSaldoProdutoNoDeposito(
+      item.produto.id,
+      idDeposito
+    );
+    if (saldo < item.quantidade) return false;
+  }
+  return true;
+}
 
-Itens:
-${itens}
+/* ================= LANÇAR ESTOQUE ================= */
+async function lancarEstoquePedido(pedidoId, idDeposito) {
+  const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}/lancar-estoque/${idDeposito}`;
+  console.log(`📦 Lançando estoque do pedido ${pedidoId} no depósito ${idDeposito}`);
 
-⏳ *Aguardando confirmação de disponibilidade.*`
+  await executarNaFilaBling(() =>
+    safeRequest(() =>
+      axios.post(url, null, { headers: getHeaders() })
+    )
+  );
+
+  console.log("✅ Estoque lançado com sucesso");
+}
+
+/* ================= MOTOR DE REGRAS ================= */
+function encontrarRegraUnificada(pedido) {
+  return REGRAS.find(r =>
+    r.lojaId === pedido.loja.id &&
+    r.statusOrigem === pedido.situacao.id
   );
 }
 
-/* ================= REGISTRA PEDIDO NO BD ================= */
-async function registrarPedidoConfirmacao(pedido) {
-  if (![204560827, 204964661].includes(pedido.loja.id)) return;
-  if (pedido.situacao.id !== 462097) return;
+async function processarRegraPorEstoque(pedido, regra) {
+  console.log(`🧠 Avaliando regra por estoque: ${regra.nome}`);
 
-  const existe = await pool.query(
-    "SELECT 1 FROM pedido_confirmacao WHERE pedido_id = $1",
-    [pedido.id]
-  );
-  if (existe.rowCount > 0) return;
+  for (const prioridade of regra.prioridades) {
+    const temSaldo = await pedidoTemSaldoCompletoNoDeposito(
+      pedido,
+      prioridade.depositoId
+    );
 
-  const token = randomUUID();
+    console.log(`📦 ${prioridade.nome} → saldo ok: ${temSaldo}`);
 
-  await pool.query(
-    `INSERT INTO pedido_confirmacao
-     (pedido_id, numero_pedido, marketplace, deposito_codigo, status_bling, token_confirmacao)
-     VALUES ($1,$2,$3,$4,$5,$6)`,
-    [pedido.id, pedido.numero, "ML", "SERVSEG_RP", 462097, token]
-  );
+    if (temSaldo) {
+      if (prioridade.lancarEstoque) {
+        await lancarEstoquePedido(pedido.id, prioridade.depositoId);
+      }
 
-  const mensagem = montarMensagemPedido(pedido);
-  await enviarWhatsAppTeste("5516993105050", mensagem);
+      await alterarStatusPedido(pedido, prioridade.statusDestino);
+      console.log("✅ Regra aplicada com sucesso");
+      return;
+    }
+  }
 
-  await pool.query(
-    "UPDATE pedido_confirmacao SET notificacao_enviada = true WHERE pedido_id = $1",
-    [pedido.id]
-  );
-
-  console.log(`📲 WhatsApp enviado | Pedido ${pedido.numero}`);
+  console.log("⚠️ Nenhuma prioridade com saldo — ação manual");
 }
 
-/* ================= PROCESSO PRINCIPAL ================= */
+/* ================= STATUS ================= */
+async function alterarStatusPedido(pedido, statusDestino) {
+  const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/${statusDestino}`;
+  console.log(`🚦 Alterando status do pedido ${pedido.numero} → ${statusDestino}`);
+
+  const r = await executarNaFilaBling(() =>
+    safeRequest(() =>
+      axios.patch(url, null, { headers: getHeaders() })
+    )
+  );
+
+  console.log(`✅ Status alterado | HTTP ${r.status}`);
+}
+
+/* ================= PROCESSO ================= */
 async function processarPedidoPorId(id) {
   const r = await executarNaFilaBling(() =>
     safeRequest(() =>
@@ -186,64 +261,129 @@ async function processarPedidoPorId(id) {
   );
 
   const pedido = r.data.data;
+  
+// ✅ NOVO PASSO: registrar pedido se for ML + Serv-Seg
   await registrarPedidoConfirmacao(pedido);
 
-  const regra = REGRAS.find(r =>
-    r.lojaId === pedido.loja.id &&
-    r.statusOrigem === pedido.situacao.id
-  );
+  console.log(`📦 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
 
+  const regra = encontrarRegraUnificada(pedido);
   if (!regra) return;
+
+  console.log(`🧠 Aplicando regra: ${regra.nome}`);
 
   if (regra.tipo === "SIMPLES") {
     await alterarStatusPedido(pedido, regra.statusDestino);
+    return;
+  }
+
+  if (regra.tipo === "ESTOQUE") {
+    await processarRegraPorEstoque(pedido, regra);
   }
 }
 
-/* ================= STATUS ================= */
-async function alterarStatusPedido(pedido, statusDestino) {
-  await executarNaFilaBling(() =>
-    safeRequest(() =>
-      axios.patch(
-        `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/${statusDestino}`,
-        null,
-        { headers: getHeaders() }
+/* ================= DEBUG PEDIDO ================= */
+app.get("/debug-pedido/:numero", async (req, res) => {
+  try {
+    const numero = req.params.numero;
+    const busca = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.get(
+          `https://api.bling.com.br/Api/v3/pedidos/vendas?numero=${numero}`,
+          { headers: getHeaders() }
+        )
       )
-    )
-  );
-}
+    );
 
-/* ================= ROTAS ================= */
+    if (!busca.data.data?.length) {
+      return res.status(404).json({ erro: "Pedido não encontrado" });
+    }
+
+    const idPedido = busca.data.data[0].id;
+
+    const detalhe = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.get(
+          `https://api.bling.com.br/Api/v3/pedidos/vendas/${idPedido}`,
+          { headers: getHeaders() }
+        )
+      )
+    );
+
+    res.json(detalhe.data.data);
+  } catch (e) {
+    res.status(500).json({ erro: e.message });
+  }
+});
+
+/* ================= WEBHOOK ================= */
 app.post("/webhook", async (req, res) => {
-  if (!WEBHOOK_ATIVO) return res.send("Webhook desligado");
-  if (req.body?.data?.id) {
-    await processarPedidoPorId(req.body.data.id);
+  if (!WEBHOOK_ATIVO) return res.status(200).send("Webhook desligado");
+
+  try {
+    const idPedido = req.body?.data?.id;
+    if (idPedido) {
+      console.log("🔔 Webhook recebido");
+      await processarPedidoPorId(idPedido);
+    }
+  } catch (e) {
+    console.error("❌ Erro no webhook:", e.message);
   }
-  res.send("OK");
+
+  res.status(200).send("OK");
 });
 
-app.get("/teste-whatsapp", async (_, res) => {
-  await enviarWhatsAppTeste("5516993105050", "Teste WhatsApp ✅");
-  res.json({ ok: true });
+
+/* ================= SAÚDE ================= */
+app.get("/health", (req, res) => {
+  console.log(JSON.stringify({
+    type: "health",
+    status: "ok",
+    time: new Date().toISOString()
+  }));
+  res.status(200).json({ status: "ok" });
 });
 
-app.get("/health", (_, res) => res.json({ status: "ok" }));
+/* ================= HEALTH CHECK OAUTH ================= */
+app.get("/health/oauth", (req, res) => {
+  const agora = Date.now();
+  const MAX_DELAY = 30 * 60 * 1000; // 30 minutos
 
-app.get("/health/oauth", (_, res) => {
+  // ✅ Caso especial: acabou de subir
   if (ultimoRefreshToken === 0 && REFRESH_TOKEN) {
-    return res.json({ status: "ok", oauth: "starting" });
+    return res.status(200).json({
+      status: "ok",
+      oauth: "starting",
+      message: "Servidor recém-iniciado, aguardando primeiro refresh"
+    });
   }
-  if (ultimoRefreshStatus === "ok") {
-    return res.json({ status: "ok", oauth: "active" });
+
+  if (
+    ultimoRefreshStatus === "ok" &&
+    agora - ultimoRefreshToken < MAX_DELAY
+  ) {
+    return res.status(200).json({
+      status: "ok",
+      oauth: "active"
+    });
   }
-  res.status(500).json({ status: "error", oauth: "stale" });
+
+  console.warn("⚠️ OAuth possível problema — refresh antigo ou falhou");
+
+  return res.status(500).json({
+    status: "error",
+    oauth: "stale"
+  });
 });
 
-/* ================= CALLBACK BLING ================= */
+/* ================= CALLBACK ================= */
 app.get("/callback", async (req, res) => {
   try {
     const code = req.query.code;
-    if (!code) return res.status(400).send("Código ausente");
+
+    if (!code) {
+      return res.status(400).send("Código de autorização não informado");
+    }
 
     const params = new URLSearchParams();
     params.append("grant_type", "authorization_code");
@@ -260,26 +400,137 @@ app.get("/callback", async (req, res) => {
 
     ACCESS_TOKEN = r.data.access_token;
     REFRESH_TOKEN = r.data.refresh_token;
-
+    
     saveTokens({
-      access_token: ACCESS_TOKEN,
-      refresh_token: REFRESH_TOKEN
+    access_token: ACCESS_TOKEN,
+    refresh_token: REFRESH_TOKEN
     });
 
-    ultimoRefreshToken = Date.now();
-    ultimoRefreshStatus = "ok";
 
-    res.send("✅ OAuth concluído");
+    console.log("✅ OAuth concluído com sucesso");
+    res.send("✅ Autorização concluída com sucesso. Pode fechar esta página.");
   } catch (e) {
-    console.error(e);
-    res.status(500).send("Erro OAuth");
+    console.error("❌ Erro no callback OAuth:", e.response?.data || e.message);
+    res.status(500).send("Erro ao processar callback OAuth");
   }
 });
 
-/* ================= AUTO REFRESH ================= */
-setInterval(() => {
-  if (REFRESH_TOKEN) renovarToken();
-}, 10 * 60 * 1000);
+/* ================= Registra pedido no BD ================= */
+
+/**
+ * Registra pedido Mercado Livre na tabela pedido_confirmacao
+ * quando entra no status 462966
+ */
+async function registrarPedidoConfirmacao(pedido) {
+  console.log("🔍 DEBUG registrarPedidoConfirmacao");
+  console.log("Loja ID:", pedido.loja.id);
+  console.log("Status ID:", pedido.situacao.id);
+  console.log("Número pedido:", pedido.numero);
+  // ✅ Só Mercado Livre
+  if (pedido.loja.id !== 204560827 && pedido.loja.id !== 204964661) {
+    return;
+  }
+
+  // ✅ Só status Serv-Seg Rio Preto
+  if (pedido.situacao.id !== 462097) {
+    return;
+  }
+
+  const pedidoId = pedido.id;
+  const numeroPedido = pedido.numero;
+
+  // 1️⃣ Verifica se o pedido já está registrado
+  const existe = await pool.query(
+    "SELECT 1 FROM pedido_confirmacao WHERE pedido_id = $1",
+    [pedidoId]
+  );
+
+  if (existe.rowCount > 0) {
+    console.log(`ℹ️ Pedido ${numeroPedido} já registrado para confirmação`);
+    return;
+  }
+
+  // 2️⃣ Gera token único de confirmação
+  const tokenConfirmacao = randomUUID();
+
+  // 3️⃣ Insere no banco
+  await pool.query(
+    `
+    INSERT INTO pedido_confirmacao
+    (
+      pedido_id,
+      numero_pedido,
+      marketplace,
+      deposito_codigo,
+      status_bling,
+      token_confirmacao
+    )
+    VALUES
+    ($1, $2, $3, $4, $5, $6)
+    `,
+    [
+      pedidoId,
+      numeroPedido,
+      "ML",
+      "SERVSEG_RP",
+      462966,
+      tokenConfirmacao
+    ]
+  );
+  // telefone do responsável pelo depósito
+const telefoneDeposito = "5516993105050"; // ajuste se necessário
+
+await enviarWhatsAppTeste(telefoneDeposito, mensagem);
+
+// marca no banco que a notificação foi enviada
+await pool.query(
+  `UPDATE pedido_confirmacao
+   SET notificacao_enviada = true
+   WHERE pedido_id = $1`,
+  [pedidoId]
+);
+  console.log(
+    `✅ Pedido ${numeroPedido} registrado para confirmação (token ${tokenConfirmacao})`
+  );
+}
+
+function montarMensagemPedido(pedido) {
+  const itens = pedido.itens
+    .map(
+      item => `• ${item.produto.nome} — ${item.quantidade} un`
+    )
+    .join("\n");
+
+  return (
+`📦 *NOVO PEDIDO – MERCADO LIVRE*
+
+Pedido: *${pedido.numero}*
+Depósito: *Serv-Seg Rio Preto*
+
+Itens:
+${itens}
+
+⏳ *Aguardando confirmação de disponibilidade.*
+Após a confirmação o pedido será faturado automaticamente.`
+  );
+}
+
+console.log("📲 Mensagem WhatsApp enviada para o depósito");
+/* ================= TOKEN AUTO-RENEW ================= */
+
+// 10 minutos
+const TOKEN_REFRESH_INTERVAL = 10 * 60 * 1000;
+
+setInterval(async () => {
+  if (!REFRESH_TOKEN) {
+    console.warn("⚠️ Refresh token ausente, não foi possível renovar");
+    return;
+  }
+
+  console.log("⏳ Renovação automática de token em execução");
+  await renovarToken();
+
+}, TOKEN_REFRESH_INTERVAL);
 
 /* ================= START ================= */
 app.listen(process.env.PORT || 3000, () => {
