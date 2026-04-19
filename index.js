@@ -515,12 +515,14 @@ if (existe.rowCount > 0 && permitirReenvio) {
 function montarMensagemConfirmacao(pedido) {
   const itensTexto = pedido.itens
     .map(item => {
-      return `• ${item.produto.nome} — ${item.quantidade}`;
+      return `• Código: ${item.codigo}
+  ${item.descricao}
+  Quantidade: ${item.quantidade}`;
     })
-    .join("\n");
+    .join("\n\n");
 
   return (
-`📦 *CONFIRMAÇÃO DE PEDIDO – MERCADO LIVRE*
+`📦 *CONFIRMAÇÃO DE PEDIDO – MUNDOSEG ML MATRIZ*
 
 Pedido Nº: *${pedido.numero}*
 
