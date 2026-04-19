@@ -4,6 +4,26 @@ import { pool } from "./db.js";
 import REGRAS from "./regras.js";
 import { randomUUID } from "crypto";
 import { loadTokens, saveTokens } from "./tokenStore.js";
+import { enviarWhatsAppTeste } from "./notificacoes/whatsapp.js";
+
+/* ================= Envio Mensagem ================= */
+app.get("/teste-whatsapp", async (req, res) => {
+  try {
+    // Coloque SEU número pessoal (somente números, com DDI)
+    const telefone = "5516993105050";
+
+    const mensagem =
+      "📦 Teste WhatsApp Cloud API\n\nSe você recebeu isso, a integração está funcionando ✅";
+
+    await enviarWhatsAppTeste(telefone, mensagem);
+
+    res.json({ status: "ok", mensagem: "WhatsApp enviado" });
+  } catch (e) {
+    console.error("❌ Erro WhatsApp:", e.response?.data || e.message);
+    res.status(500).json({ error: "Erro ao enviar WhatsApp" });
+  }
+});
+
 
 /* ================= OAUTH ================= */
 let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
