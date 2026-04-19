@@ -1,6 +1,14 @@
 import express from "express";
 import axios from "axios";
 import REGRAS from "./regras.js";
+import { loadTokens, saveTokens } from "./tokenStore.js";
+
+const stored = loadTokens();
+if (stored) {
+  ACCESS_TOKEN = stored.access_token;
+  REFRESH_TOKEN = stored.refresh_token;
+  console.log("🔐 Tokens restaurados do storage");
+}
 
 const app = express();
 app.use(express.json());
@@ -51,7 +59,7 @@ async function processarFila() {
   }
 }
 
-/* ================= TOKEN (REATIVO + ESTADO) ================= */
+/* ================= TOKEN (REATIVO + ESTADO + PERSISTÊNCIA) ================= */
 let ultimoRefreshToken = 0;
 let ultimoRefreshStatus = "unknown";
 let refreshEmAndamento = false;
@@ -73,19 +81,24 @@ async function renovarToken() {
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
     );
 
+    // ✅ 1️⃣ Atualiza os tokens em memória
     ACCESS_TOKEN = r.data.access_token;
     REFRESH_TOKEN = r.data.refresh_token;
 
-    // ✅ ATUALIZA ESTADO DO OAUTH
+    // ✅ 2️⃣ PERSISTE OS TOKENS (PONTO CRÍTICO)
+    saveTokens({
+      access_token: ACCESS_TOKEN,
+      refresh_token: REFRESH_TOKEN
+    });
+
+    // ✅ 3️⃣ Atualiza estado do OAuth (health / monitor)
     ultimoRefreshToken = Date.now();
     ultimoRefreshStatus = "ok";
 
     console.log("🔁 Token renovado automaticamente");
 
   } catch (e) {
-    // ✅ MARCA FALHA
     ultimoRefreshStatus = "error";
-
     console.error(
       "❌ Falha ao renovar token:",
       e.response?.data || e.message
@@ -352,6 +365,12 @@ app.get("/callback", async (req, res) => {
 
     ACCESS_TOKEN = r.data.access_token;
     REFRESH_TOKEN = r.data.refresh_token;
+    
+    saveTokens({
+    access_token: ACCESS_TOKEN,
+    refresh_token: REFRESH_TOKEN
+    });
+
 
     console.log("✅ OAuth concluído com sucesso");
     res.send("✅ Autorização concluída com sucesso. Pode fechar esta página.");
