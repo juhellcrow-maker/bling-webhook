@@ -324,7 +324,7 @@ app.get("/health/token", async (req, res) => {
   }
 });
 
-/* ================= OAUTH START 
+/* ================= OAUTH START ================= */
 app.get("/oauth/start", (req, res) => {
   const redirectUri = encodeURIComponent(process.env.REDIRECT_URI);
 
@@ -336,9 +336,9 @@ app.get("/oauth/start", (req, res) => {
     `&state=bling_auth`;
 
   res.redirect(url);
-}); ================= */
+}); 
 
-/* ================= OAUTH CALLBACK 
+/* ================= OAUTH CALLBACK ================= */
 app.get("/callback", async (req, res) => {
   try {
     const code = req.query.code;
@@ -369,7 +369,7 @@ app.get("/callback", async (req, res) => {
     console.error("❌ Erro no callback OAuth:", e.response?.data || e.message);
     res.status(500).send("Erro ao processar callback OAuth");
   }
-});================= */
+});
 
 
 /* ================= TOKEN AUTO-RENEW ================= */
