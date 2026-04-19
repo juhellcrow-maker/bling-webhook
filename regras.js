@@ -107,4 +107,29 @@ export default [
       }
     ]
   },
+  /* =========================================================
+   * TikTok – Matriz
+   * Decisão por estoque
+   * ========================================================= */
+
+  {
+    nome: "TikTok Matriz - decisão por estoque",
+    lojaId: 205589391,
+    statusOrigem: 6,
+    tipo: "ESTOQUE",
+     prioridades: [
+      {
+        nome: "SS Rio Preto",
+        depositoId: 14888665295,
+        statusDestino: 462097,
+        lancarEstoque: true
+      },
+      {
+        nome: "PS Ribeirão",
+        depositoId: 14888631397,
+        statusDestino: 462966,
+        lancarEstoque: true
+      }
+    ]
+  },
   ];
