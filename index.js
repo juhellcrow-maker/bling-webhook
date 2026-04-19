@@ -8,7 +8,7 @@ import { enviarWhatsAppTeste } from "./notificacoes/whatsapp.js";
 const app = express();
 app.use(express.json());
 
-/* ================= Envio Mensagem ================= */
+/* ================= Envio Mensagem
 app.get("/teste-whatsapp", async (req, res) => {
   try {
     // Coloque SEU número pessoal (somente números, com DDI)
@@ -25,7 +25,7 @@ app.get("/teste-whatsapp", async (req, res) => {
     res.status(500).json({ error: "Erro ao enviar WhatsApp" });
   }
 });
-
+ ================= */
 
 /* ================= OAUTH ================= */
 let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
@@ -477,13 +477,47 @@ async function registrarPedidoConfirmacao(pedido) {
       tokenConfirmacao
     ]
   );
+function montarMensagemPedido(pedido) {
+  const itens = pedido.itens
+    .map(item =>
+      `• ${item.produto.nome} — ${item.quantidade} un`
+    )
+    .join("\n");
 
+  return (
+`📦 *NOVO PEDIDO – MERCADO LIVRE*
+
+Pedido: *${pedido.numero}*
+Depósito: *Serv‑Seg Rio Preto*
+
+Itens:
+${itens}
+
+⏳ *Aguardando confirmação de disponibilidade.*
+Após a confirmação o pedido será faturado automaticamente.`
+  );
+}
   console.log(
     `✅ Pedido ${numeroPedido} registrado para confirmação (token ${tokenConfirmacao})`
   );
 }
 
+const mensagem = montarMensagemPedido(pedido);
 
+// telefone do responsável pelo depósito
+const telefoneDeposito = "5516993105050"; // ajuste se necessário
+
+await enviarWhatsAppTeste(telefoneDeposito, mensagem);
+
+// marca no banco que a notificação foi enviada
+await pool.query(
+  `UPDATE pedido_confirmacao
+   SET notificacao_enviada = true
+   WHERE pedido_id = $1`,
+  [pedidoId]
+);
+
+console.log("📲 Mensagem WhatsApp enviada para o depósito");
 /* ================= TOKEN AUTO-RENEW ================= */
 
 // 10 minutos
