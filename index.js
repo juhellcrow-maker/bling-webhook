@@ -11,6 +11,11 @@ if (stored) {
   REFRESH_TOKEN = stored.refresh_token;
   console.log("🔐 Tokens restaurados do storage");
 }
+// Após carregar tokens persistidos
+if (REFRESH_TOKEN) {
+  console.log("🔁 Executando refresh inicial no startup");
+  renovarToken();
+}
 
 const app = express();
 app.use(express.json());
