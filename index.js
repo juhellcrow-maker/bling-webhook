@@ -206,7 +206,14 @@ async function lancarEstoquePedido(pedidoId, idDeposito) {
 function encontrarRegraUnificada(pedido) {
   return REGRAS.find(r =>
     r.lojaId === pedido.loja.id &&
-    r.statusOrigem === pedido.situacao.id
+    r.statusOrigem === pedido.situacao.id &&
+    (
+      // 👇 se a regra NÃO tiver condicaoUnidade, passa direto
+      !r.condicaoUnidade ||
+
+      // 👇 se tiver, compara com a unidade REAL do pedido
+      r.condicaoUnidade === pedido.loja.unidadeNegocio?.id
+    )
   );
 }
 
