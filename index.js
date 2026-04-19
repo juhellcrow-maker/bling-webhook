@@ -286,7 +286,7 @@ app.get("/health", (req, res) => {
 });
 
 /* ================= OAUTH CALLBACK ================= */
-app.get("/callback", async (req, res) => {
+app.get("/oauth/callback", async (req, res) => {
   try {
     const code = req.query.code;
 
@@ -302,13 +302,9 @@ app.get("/callback", async (req, res) => {
     params.append("redirect_uri", process.env.REDIRECT_URI);
 
     const r = await axios.post(
-      "https://www.bling.com.br/Api/v3/oauth/token",
+      "https://developer.bling.com.br/api/bling/oauth/token",
       params,
-      {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded"
-        }
-      }
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
     );
 
     ACCESS_TOKEN = r.data.access_token;
@@ -321,21 +317,6 @@ app.get("/callback", async (req, res) => {
     res.status(500).send("Erro ao processar callback OAuth");
   }
 });
-
-/* ================= OAUTH START ================= */
-app.get("/oauth/start", (req, res) => {
-  const redirectUri = encodeURIComponent(process.env.REDIRECT_URI);
-
-  const url =
-    `https://www.bling.com.br/Api/v3/oauth/authorize` +
-    `?response_type=code` +
-    `&client_id=${CLIENT_ID}` +
-    `&redirect_uri=${redirectUri}` +
-    `&state=bling_auth`;
-
-  res.redirect(url);
-});
-
 /* ================= START ================= */
 app.listen(process.env.PORT || 3000, () => {
   console.log("✅ Servidor iniciado");
