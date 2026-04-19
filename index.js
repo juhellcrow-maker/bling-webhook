@@ -447,16 +447,21 @@ async function registrarPedidoConfirmacao(pedido) {
     `✅ Pedido elegível para confirmação (Pedido ${pedido.numero})`
   );
 
-  // ✅ Evita duplicidade
-  const existe = await pool.query(
-    "SELECT 1 FROM pedido_confirmacao WHERE pedido_id = $1",
-    [pedido.id]
-  );
+const existe = await pool.query(
+  "SELECT 1 FROM pedido_confirmacao WHERE pedido_id = $1",
+  [pedido.id]
+);
 
-  if (existe.rowCount > 0) {
-    console.log("ℹ️ Pedido já registrado, não reenviar mensagem");
-    return;
-  }
+const permitirReenvio = process.env.WHATSAPP_REENVIAR === "true";
+
+if (existe.rowCount > 0 && !permitirReenvio) {
+  console.log("ℹ️ Pedido já registrado, não reenviar mensagem");
+  return;
+}
+
+if (existe.rowCount > 0 && permitirReenvio) {
+  console.log("🔁 Reenvio forçado de WhatsApp habilitado");
+}
 
   // ✅ Gera token
   const tokenConfirmacao = randomUUID();
