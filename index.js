@@ -1,5 +1,6 @@
 import express from "express";
 import axios from "axios";
+import { pool } from "./db.js";
 import REGRAS from "./regras.js";
 import { loadTokens, saveTokens } from "./tokenStore.js";
 
