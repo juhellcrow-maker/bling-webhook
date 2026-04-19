@@ -5,6 +5,7 @@ import REGRAS from "./regras.js";
 import { randomUUID } from "crypto";
 import { loadTokens, saveTokens } from "./tokenStore.js";
 import { enviarWhatsAppTeste } from "./notificacoes/whatsapp.js";
+const app = express();
 
 /* ================= Envio Mensagem ================= */
 app.get("/teste-whatsapp", async (req, res) => {
