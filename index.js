@@ -8,6 +8,9 @@ import { loadTokens, saveTokens } from "./tokenStore.js";
 /* ================= OAUTH ================= */
 let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 let REFRESH_TOKEN = process.env.REFRESH_TOKEN;
+let ultimoRefreshToken = 0;
+let ultimoRefreshStatus = "unknown";
+let refreshEmAndamento = false;
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const stored = loadTokens();
@@ -68,9 +71,6 @@ async function processarFila() {
 }
 
 /* ================= TOKEN (REATIVO + ESTADO + PERSISTÊNCIA) ================= */
-let ultimoRefreshToken = 0;
-let ultimoRefreshStatus = "unknown";
-let refreshEmAndamento = false;
 
 async function renovarToken() {
   if (refreshEmAndamento) return;
