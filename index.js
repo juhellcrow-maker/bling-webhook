@@ -286,17 +286,26 @@ app.get("/health", (req, res) => {
 /* ================= HEALTH CHECK TOKEN ================= */
 app.get("/health/token", async (req, res) => {
   try {
+    // 🔐 Proteção por token interno (recomendado)
+    if (req.headers["x-health-token"] !== process.env.HEALTH_TOKEN) {
+      return res.status(403).json({
+        status: "forbidden"
+      });
+    }
+
     console.log("🫀 Health check TOKEN — validando acesso ao Bling");
 
-    const r = await axios.get(
-      "https://api.bling.com.br/Api/v3/empresas",
-      {
-        headers: getHeaders(),
-        timeout: 5000 // evita travar health
-      }
+    const r = await safeRequest(() =>
+      axios.get(
+        "https://api.bling.com.br/Api/v3/empresas",
+        {
+          headers: getHeaders(),
+          timeout: 5000 // evita travar health
+        }
+      )
     );
 
-    // Se chegou aqui, o token é válido
+    // ✅ Se chegou aqui, token é válido
     console.log("✅ Token válido — acesso ao Bling OK");
 
     res.status(200).json({
