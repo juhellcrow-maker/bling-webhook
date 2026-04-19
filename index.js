@@ -422,38 +422,39 @@ app.get("/callback", async (req, res) => {
  * quando entra no status 462966
  */
 async function registrarPedidoConfirmacao(pedido) {
-  console.log("🔍 DEBUG registrarPedidoConfirmacao");
-  console.log("Loja ID:", pedido.loja.id);
-  console.log("Status ID:", pedido.situacao.id);
-  console.log("Número pedido:", pedido.numero);
-  // ✅ Só Mercado Livre
-  if (pedido.loja.id !== 204560827 && pedido.loja.id !== 204964661) {
+  console.log("📌 Verificando envio de confirmação");
+
+  // ✅ CONDIÇÃO 1: Loja correta
+  if (pedido.loja.id !== 204560827) {
+    console.log("⛔ Loja diferente, não envia WhatsApp");
     return;
   }
 
-  // ✅ Só status Serv-Seg Rio Preto
+  // ✅ CONDIÇÃO 2: Status correto
   if (pedido.situacao.id !== 462097) {
+    console.log("⛔ Status diferente de 462097, não envia WhatsApp");
     return;
   }
 
-  const pedidoId = pedido.id;
-  const numeroPedido = pedido.numero;
+  console.log(
+    `✅ Pedido elegível para confirmação (Pedido ${pedido.numero})`
+  );
 
-  // 1️⃣ Verifica se o pedido já está registrado
+  // ✅ Evita duplicidade
   const existe = await pool.query(
     "SELECT 1 FROM pedido_confirmacao WHERE pedido_id = $1",
-    [pedidoId]
+    [pedido.id]
   );
 
   if (existe.rowCount > 0) {
-    console.log(`ℹ️ Pedido ${numeroPedido} já registrado para confirmação`);
+    console.log("ℹ️ Pedido já registrado, não reenviar mensagem");
     return;
   }
 
-  // 2️⃣ Gera token único de confirmação
+  // ✅ Gera token
   const tokenConfirmacao = randomUUID();
 
-  // 3️⃣ Insere no banco
+  // ✅ Grava no banco
   await pool.query(
     `
     INSERT INTO pedido_confirmacao
@@ -465,57 +466,60 @@ async function registrarPedidoConfirmacao(pedido) {
       status_bling,
       token_confirmacao
     )
-    VALUES
-    ($1, $2, $3, $4, $5, $6)
+    VALUES ($1, $2, $3, $4, $5, $6)
     `,
     [
-      pedidoId,
-      numeroPedido,
+      pedido.id,
+      pedido.numero,
       "ML",
       "SERVSEG_RP",
-      462966,
+      462097,
       tokenConfirmacao
     ]
   );
-  // telefone do responsável pelo depósito
-const telefoneDeposito = "5516993105050"; // ajuste se necessário
 
-await enviarWhatsAppTeste(telefoneDeposito, mensagem);
+  // ✅ Monta mensagem com NÚMERO DO PEDIDO E ITENS
+  const mensagem = montarMensagemConfirmacao(pedido);
 
-// marca no banco que a notificação foi enviada
-await pool.query(
-  `UPDATE pedido_confirmacao
-   SET notificacao_enviada = true
-   WHERE pedido_id = $1`,
-  [pedidoId]
-);
-  console.log(
-    `✅ Pedido ${numeroPedido} registrado para confirmação (token ${tokenConfirmacao})`
+  // ✅ Número do WhatsApp do depósito
+  const telefoneDeposito = "5516993105050";
+
+  // ✅ Envia WhatsApp
+  await enviarWhatsAppTeste(telefoneDeposito, mensagem);
+
+  // ✅ Marca envio no banco
+  await pool.query(
+    `
+    UPDATE pedido_confirmacao
+    SET notificacao_enviada = true
+    WHERE pedido_id = $1
+    `,
+    [pedido.id]
   );
+
+  console.log("📲 WhatsApp de confirmação enviado com sucesso");
 }
 
-function montarMensagemPedido(pedido) {
-  const itens = pedido.itens
-    .map(
-      item => `• ${item.produto.nome} — ${item.quantidade} un`
-    )
+function montarMensagemConfirmacao(pedido) {
+  const itensTexto = pedido.itens
+    .map(item => {
+      return `• ${item.produto.nome} — ${item.quantidade}`;
+    })
     .join("\n");
 
   return (
-`📦 *NOVO PEDIDO – MERCADO LIVRE*
+`📦 *CONFIRMAÇÃO DE PEDIDO – MERCADO LIVRE*
 
-Pedido: *${pedido.numero}*
-Depósito: *Serv-Seg Rio Preto*
+Pedido Nº: *${pedido.numero}*
 
-Itens:
-${itens}
+Itens do pedido:
+${itensTexto}
 
-⏳ *Aguardando confirmação de disponibilidade.*
-Após a confirmação o pedido será faturado automaticamente.`
+⏳ *Por favor, confirme se todos os itens estão disponíveis para envio.*
+Após a confirmação, o pedido será faturado automaticamente.`
   );
 }
 
-console.log("📲 Mensagem WhatsApp enviada para o depósito");
 /* ================= TOKEN AUTO-RENEW ================= */
 
 // 10 minutos
