@@ -283,6 +283,47 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
+/* ================= HEALTH CHECK TOKEN ================= */
+app.get("/health/token", async (req, res) => {
+  try {
+    console.log("🫀 Health check TOKEN — validando acesso ao Bling");
+
+    const r = await axios.get(
+      "https://api.bling.com.br/Api/v3/empresas",
+      {
+        headers: getHeaders(),
+        timeout: 5000 // evita travar health
+      }
+    );
+
+    // Se chegou aqui, o token é válido
+    console.log("✅ Token válido — acesso ao Bling OK");
+
+    res.status(200).json({
+      status: "ok",
+      token: "valid",
+      blingStatus: r.status
+    });
+
+  } catch (err) {
+    if (err.response?.status === 401) {
+      console.error("❌ Token inválido ou expirado");
+
+      return res.status(401).json({
+        status: "error",
+        token: "invalid"
+      });
+    }
+
+    console.error("❌ Erro ao validar token:", err.message);
+
+    res.status(500).json({
+      status: "error",
+      message: "Falha ao validar token"
+    });
+  }
+});
+
 /* ================= OAUTH START 
 app.get("/oauth/start", (req, res) => {
   const redirectUri = encodeURIComponent(process.env.REDIRECT_URI);
