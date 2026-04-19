@@ -322,25 +322,27 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
-/* ================= HEALTH CHECK OAUTH (LITE) ================= */
+/* ================= HEALTH CHECK OAUTH ================= */
 app.get("/health/oauth", (req, res) => {
   const agora = Date.now();
+  const MAX_DELAY = 30 * 60 * 1000; // 30 minutos
 
-  // considera OK se houve refresh nos últimos 30 minutos
-  const MAX_DELAY = 30 * 60 * 1000;
+  // ✅ Caso especial: acabou de subir
+  if (ultimoRefreshToken === 0 && REFRESH_TOKEN) {
+    return res.status(200).json({
+      status: "ok",
+      oauth: "starting",
+      message: "Servidor recém-iniciado, aguardando primeiro refresh"
+    });
+  }
 
   if (
     ultimoRefreshStatus === "ok" &&
     agora - ultimoRefreshToken < MAX_DELAY
   ) {
-    console.log("🔐 OAuth ativo — refresh recente OK");
-
     return res.status(200).json({
       status: "ok",
-      oauth: "active",
-      lastRefreshMinutes: Math.round(
-        (agora - ultimoRefreshToken) / 60000
-      )
+      oauth: "active"
     });
   }
 
