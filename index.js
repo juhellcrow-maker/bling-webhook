@@ -285,6 +285,55 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
+/* ================= OAUTH START ================= */
+app.get("/oauth/start", (req, res) => {
+  const redirectUri = encodeURIComponent(process.env.REDIRECT_URI);
+
+  const url = `https://developer.bling.com.br/bling/oauth/authorize` +
+              `?response_type=code` +
+              `&client_id=${CLIENT_ID}` +
+              `&redirect_uri=${redirectUri}`;
+
+  res.redirect(url);
+});
+
+/* ================= OAUTH CALLBACK ================= */
+app.get("/oauth/callback", async (req, res) => {
+  try {
+    const code = req.query.code;
+
+    if (!code) {
+      return res.status(400).send("Código de autorização não informado");
+    }
+
+    const params = new URLSearchParams();
+    params.append("grant_type", "authorization_code");
+    params.append("code", code);
+    params.append("client_id", CLIENT_ID);
+    params.append("client_secret", CLIENT_SECRET);
+    params.append("redirect_uri", process.env.REDIRECT_URI);
+
+    const r = await axios.post(
+      "https://developer.bling.com.br/api/bling/oauth/token",
+      params,
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      }
+    );
+
+    ACCESS_TOKEN = r.data.access_token;
+    REFRESH_TOKEN = r.data.refresh_token;
+
+    console.log("✅ OAuth concluído com sucesso");
+    res.send("✅ Autorização concluída com sucesso. Pode fechar esta página.");
+  } catch (e) {
+    console.error("❌ Erro no callback OAuth:", e.response?.data || e.message);
+    res.status(500).send("Erro ao processar callback OAuth");
+  }
+});
+
 /* ================= START ================= */
 app.listen(process.env.PORT || 3000, () => {
   console.log("✅ Servidor iniciado");
