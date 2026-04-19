@@ -51,7 +51,9 @@ async function processarFila() {
   }
 }
 
-/* ================= TOKEN (REATIVO) ================= */
+/* ================= TOKEN (REATIVO + ESTADO) ================= */
+let ultimoRefreshToken = 0;
+let ultimoRefreshStatus = "unknown";
 let refreshEmAndamento = false;
 
 async function renovarToken() {
@@ -74,7 +76,20 @@ async function renovarToken() {
     ACCESS_TOKEN = r.data.access_token;
     REFRESH_TOKEN = r.data.refresh_token;
 
-    console.log("🔑 Token renovado");
+    // ✅ ATUALIZA ESTADO DO OAUTH
+    ultimoRefreshToken = Date.now();
+    ultimoRefreshStatus = "ok";
+
+    console.log("🔁 Token renovado automaticamente");
+
+  } catch (e) {
+    // ✅ MARCA FALHA
+    ultimoRefreshStatus = "error";
+
+    console.error(
+      "❌ Falha ao renovar token:",
+      e.response?.data || e.message
+    );
   } finally {
     refreshEmAndamento = false;
   }
@@ -283,56 +298,35 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
-/* ================= HEALTH CHECK TOKEN ================= */
-app.get("/health/token", async (req, res) => {
-  try {
-    // 🔐 Proteção por token interno (recomendado)
-    if (req.headers["x-health-token"] !== process.env.HEALTH_TOKEN) {
-      return res.status(403).json({
-        status: "forbidden"
-      });
-    }
+/* ================= HEALTH CHECK OAUTH (LITE) ================= */
+app.get("/health/oauth", (req, res) => {
+  const agora = Date.now();
 
-    console.log("🫀 Health check TOKEN — validando acesso ao Bling");
+  // considera OK se houve refresh nos últimos 30 minutos
+  const MAX_DELAY = 30 * 60 * 1000;
 
-    const r = await safeRequest(() =>
-      axios.get(
-        "https://api.bling.com.br/Api/v3/empresas",
-        {
-          headers: getHeaders(),
-          timeout: 5000 // evita travar health
-        }
-      )
-    );
+  if (
+    ultimoRefreshStatus === "ok" &&
+    agora - ultimoRefreshToken < MAX_DELAY
+  ) {
+    console.log("🔐 OAuth ativo — refresh recente OK");
 
-    // ✅ Se chegou aqui, token é válido
-    console.log("✅ Token válido — acesso ao Bling OK");
-
-    res.status(200).json({
+    return res.status(200).json({
       status: "ok",
-      token: "valid",
-      blingStatus: r.status
-    });
-
-  } catch (err) {
-    if (err.response?.status === 401) {
-      console.error("❌ Token inválido ou expirado");
-
-      return res.status(401).json({
-        status: "error",
-        token: "invalid"
-      });
-    }
-
-    console.error("❌ Erro ao validar token:", err.message);
-
-    res.status(500).json({
-      status: "error",
-      message: "Falha ao validar token"
+      oauth: "active",
+      lastRefreshMinutes: Math.round(
+        (agora - ultimoRefreshToken) / 60000
+      )
     });
   }
-});
 
+  console.warn("⚠️ OAuth possível problema — refresh antigo ou falhou");
+
+  return res.status(500).json({
+    status: "error",
+    oauth: "stale"
+  });
+});
 
 /* ================= CALLBACK ================= */
 app.get("/callback", async (req, res) => {
