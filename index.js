@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { loadTokens, saveTokens } from "./tokenStore.js";
 import { enviarWhatsAppTeste } from "./notificacoes/whatsapp.js";
 const app = express();
+app.use(express.json());
 
 /* ================= Envio Mensagem ================= */
 app.get("/teste-whatsapp", async (req, res) => {
@@ -46,8 +47,7 @@ if (REFRESH_TOKEN) {
   renovarToken();
 }
 
-const app = express();
-app.use(express.json());
+
 
 /* ================= CONFIG ================= */
 const WEBHOOK_ATIVO = true;
