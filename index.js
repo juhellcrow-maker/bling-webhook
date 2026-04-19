@@ -268,12 +268,6 @@ async function processarPedidoPorId(id) {
   );
 
   const pedido = r.data.data;
-  
-// ✅ NOVO PASSO: registrar pedido se for ML + Serv-Seg
-  await registrarPedidoConfirmacao(pedido);
-
-  console.log(`📦 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
-
   const regra = encontrarRegraUnificada(pedido);
   if (!regra) return;
 
@@ -287,6 +281,11 @@ async function processarPedidoPorId(id) {
   if (regra.tipo === "ESTOQUE") {
     await processarRegraPorEstoque(pedido, regra);
   }
+
+  // ✅ NOVO PASSO: registrar pedido se for ML + Serv-Seg
+  await registrarPedidoConfirmacao(pedido);
+
+  console.log(`📦 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
 }
 
 /* ================= DEBUG PEDIDO ================= */
@@ -429,6 +428,7 @@ app.get("/callback", async (req, res) => {
  * quando entra no status 462966
  */
 async function registrarPedidoConfirmacao(pedido) {
+  console.log("📲 Cheguei na confirmação | Pedido", pedido.numero,"Status", pedido.situacao.id);
   console.log("📌 Verificando envio de confirmação");
 
   // ✅ CONDIÇÃO 1: Loja correta
