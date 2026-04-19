@@ -5,6 +5,11 @@ import REGRAS from "./regras.js";
 import { randomUUID } from "crypto";
 import { loadTokens, saveTokens } from "./tokenStore.js";
 
+/* ================= OAUTH ================= */
+let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
+let REFRESH_TOKEN = process.env.REFRESH_TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const stored = loadTokens();
 if (stored) {
   ACCESS_TOKEN = stored.access_token;
@@ -23,11 +28,7 @@ app.use(express.json());
 /* ================= CONFIG ================= */
 const WEBHOOK_ATIVO = true;
 
-/* ================= OAUTH ================= */
-let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
-let REFRESH_TOKEN = process.env.REFRESH_TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
+
 
 /* ================= UTIL ================= */
 const delay = ms => new Promise(r => setTimeout(r, ms));
