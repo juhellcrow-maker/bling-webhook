@@ -286,7 +286,7 @@ app.get("/health", (req, res) => {
 });
 
 /* ================= OAUTH CALLBACK ================= */
-app.get("/oauth/callback", async (req, res) => {
+app.get("/callback", async (req, res) => {
   try {
     const code = req.query.code;
 
