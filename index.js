@@ -399,7 +399,7 @@ async function registrarPedidoConfirmacao(pedido) {
   }
 
   // ✅ Só status Serv-Seg Rio Preto
-  if (pedido.situacao.id !== 462966) {
+  if (pedido.situacao.id !== 462097) {
     return;
   }
 
