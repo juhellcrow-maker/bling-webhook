@@ -273,7 +273,17 @@ app.post("/webhook", async (req, res) => {
 });
 
 /* ================= SAÚDE ================= */
-app.get("/health", (_, res) => res.send("OK"));
+app.get("/health", (req, res) => {
+  const now = new Date().toISOString();
+
+  console.log(JSON.stringify({
+    type: "health_check",
+    time: now,
+    userAgent: req.headers["user-agent"],
+  }));
+
+  res.status(200).json({ status: "ok" });
+});
 
 /* ================= START ================= */
 app.listen(process.env.PORT || 3000, () => {
