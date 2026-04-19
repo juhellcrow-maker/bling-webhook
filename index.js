@@ -6,13 +6,14 @@ import { randomUUID } from "crypto";
 import { loadTokens, saveTokens } from "./tokenStore.js";
 import { enviarWhatsAppTeste } from "./notificacoes/whatsapp.js";
 
+/* ================= APP ================= */
 const app = express();
 app.use(express.json());
 
 /* ================= CONFIG ================= */
 const WEBHOOK_ATIVO = true;
 
-/* ================= OAUTH – VARIÁVEIS ================= */
+/* ================= OAUTH - VARIÁVEIS ================= */
 let ACCESS_TOKEN = process.env.ACCESS_TOKEN || null;
 let REFRESH_TOKEN = process.env.REFRESH_TOKEN || null;
 let ultimoRefreshToken = 0;
@@ -95,7 +96,6 @@ async function executarNaFilaBling(fn) {
 
 async function processarFila() {
   if (processandoFila || filaBling.length === 0) return;
-
   processandoFila = true;
   const { fn, resolve, reject } = filaBling.shift();
 
@@ -116,12 +116,9 @@ async function safeRequest(fn, retry = false) {
   try {
     return await fn();
   } catch (err) {
-    if (err.response) {
-      const { status } = err.response;
-      if (status === 401 && !retry) {
-        await renovarToken();
-        return safeRequest(fn, true);
-      }
+    if (err.response?.status === 401 && !retry) {
+      await renovarToken();
+      return safeRequest(fn, true);
     }
     throw err;
   }
@@ -130,9 +127,7 @@ async function safeRequest(fn, retry = false) {
 /* ================= MENSAGEM WHATSAPP ================= */
 function montarMensagemPedido(pedido) {
   const itens = pedido.itens
-    .map(
-      item => `• ${item.produto.nome} — ${item.quantidade} un`
-    )
+    .map(i => `• ${i.produto.nome} — ${i.quantidade} un`)
     .join("\n");
 
   return (
@@ -144,8 +139,7 @@ Depósito: *Serv-Seg Rio Preto*
 Itens:
 ${itens}
 
-⏳ *Aguardando confirmação de disponibilidade.*
-Após a confirmação o pedido será faturado automaticamente.`
+⏳ *Aguardando confirmação de disponibilidade.*`
   );
 }
 
@@ -154,47 +148,33 @@ async function registrarPedidoConfirmacao(pedido) {
   if (![204560827, 204964661].includes(pedido.loja.id)) return;
   if (pedido.situacao.id !== 462097) return;
 
-  const pedidoId = pedido.id;
-
   const existe = await pool.query(
     "SELECT 1 FROM pedido_confirmacao WHERE pedido_id = $1",
-    [pedidoId]
+    [pedido.id]
   );
-
   if (existe.rowCount > 0) return;
 
-  const tokenConfirmacao = randomUUID();
+  const token = randomUUID();
 
   await pool.query(
-    `
-    INSERT INTO pedido_confirmacao
-    (pedido_id, numero_pedido, marketplace, deposito_codigo, status_bling, token_confirmacao)
-    VALUES ($1, $2, $3, $4, $5, $6)
-    `,
-    [
-      pedidoId,
-      pedido.numero,
-      "ML",
-      "SERVSEG_RP",
-      462097,
-      tokenConfirmacao
-    ]
+    `INSERT INTO pedido_confirmacao
+     (pedido_id, numero_pedido, marketplace, deposito_codigo, status_bling, token_confirmacao)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [pedido.id, pedido.numero, "ML", "SERVSEG_RP", 462097, token]
   );
 
   const mensagem = montarMensagemPedido(pedido);
-  const telefoneDeposito = "5516993105050";
-
-  await enviarWhatsAppTeste(telefoneDeposito, mensagem);
+  await enviarWhatsAppTeste("5516993105050", mensagem);
 
   await pool.query(
     "UPDATE pedido_confirmacao SET notificacao_enviada = true WHERE pedido_id = $1",
-    [pedidoId]
+    [pedido.id]
   );
 
-  console.log(`📲 WhatsApp enviado para o depósito | Pedido ${pedido.numero}`);
+  console.log(`📲 WhatsApp enviado | Pedido ${pedido.numero}`);
 }
 
-/* ================= PROCESSO ================= */
+/* ================= PROCESSO PRINCIPAL ================= */
 async function processarPedidoPorId(id) {
   const r = await executarNaFilaBling(() =>
     safeRequest(() =>
@@ -207,16 +187,63 @@ async function processarPedidoPorId(id) {
 
   const pedido = r.data.data;
   await registrarPedidoConfirmacao(pedido);
+
+  const regra = REGRAS.find(r =>
+    r.lojaId === pedido.loja.id &&
+    r.statusOrigem === pedido.situacao.id
+  );
+
+  if (!regra) return;
+
+  if (regra.tipo === "SIMPLES") {
+    await alterarStatusPedido(pedido, regra.statusDestino);
+  }
 }
 
-/* ================= CALLBACK ================= */
+/* ================= STATUS ================= */
+async function alterarStatusPedido(pedido, statusDestino) {
+  await executarNaFilaBling(() =>
+    safeRequest(() =>
+      axios.patch(
+        `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/${statusDestino}`,
+        null,
+        { headers: getHeaders() }
+      )
+    )
+  );
+}
+
+/* ================= ROTAS ================= */
+app.post("/webhook", async (req, res) => {
+  if (!WEBHOOK_ATIVO) return res.send("Webhook desligado");
+  if (req.body?.data?.id) {
+    await processarPedidoPorId(req.body.data.id);
+  }
+  res.send("OK");
+});
+
+app.get("/teste-whatsapp", async (_, res) => {
+  await enviarWhatsAppTeste("5516993105050", "Teste WhatsApp ✅");
+  res.json({ ok: true });
+});
+
+app.get("/health", (_, res) => res.json({ status: "ok" }));
+
+app.get("/health/oauth", (_, res) => {
+  if (ultimoRefreshToken === 0 && REFRESH_TOKEN) {
+    return res.json({ status: "ok", oauth: "starting" });
+  }
+  if (ultimoRefreshStatus === "ok") {
+    return res.json({ status: "ok", oauth: "active" });
+  }
+  res.status(500).json({ status: "error", oauth: "stale" });
+});
+
+/* ================= CALLBACK BLING ================= */
 app.get("/callback", async (req, res) => {
   try {
     const code = req.query.code;
-
-    if (!code) {
-      return res.status(400).send("Código de autorização não informado");
-    }
+    if (!code) return res.status(400).send("Código ausente");
 
     const params = new URLSearchParams();
     params.append("grant_type", "authorization_code");
@@ -233,35 +260,25 @@ app.get("/callback", async (req, res) => {
 
     ACCESS_TOKEN = r.data.access_token;
     REFRESH_TOKEN = r.data.refresh_token;
-    
+
     saveTokens({
-    access_token: ACCESS_TOKEN,
-    refresh_token: REFRESH_TOKEN
+      access_token: ACCESS_TOKEN,
+      refresh_token: REFRESH_TOKEN
     });
 
+    ultimoRefreshToken = Date.now();
+    ultimoRefreshStatus = "ok";
 
-    console.log("✅ OAuth concluído com sucesso");
-    res.send("✅ Autorização concluída com sucesso. Pode fechar esta página.");
+    res.send("✅ OAuth concluído");
   } catch (e) {
-    console.error("❌ Erro no callback OAuth:", e.response?.data || e.message);
-    res.status(500).send("Erro ao processar callback OAuth");
+    console.error(e);
+    res.status(500).send("Erro OAuth");
   }
 });
 
-/* ================= WEBHOOK ================= */
-app.post("/webhook", async (req, res) => {
-  if (!WEBHOOK_ATIVO) return res.send("Webhook desligado");
-  const idPedido = req.body?.data?.id;
-  if (idPedido) await processarPedidoPorId(idPedido);
-  res.send("OK");
-});
-
-/* ================= HEALTH ================= */
-app.get("/health", (_, res) => res.json({ status: "ok" }));
-
-/* ================= TOKEN AUTO-RENEW ================= */
-setInterval(async () => {
-  if (REFRESH_TOKEN) await renovarToken();
+/* ================= AUTO REFRESH ================= */
+setInterval(() => {
+  if (REFRESH_TOKEN) renovarToken();
 }, 10 * 60 * 1000);
 
 /* ================= START ================= */
