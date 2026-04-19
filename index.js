@@ -2,6 +2,7 @@ import express from "express";
 import axios from "axios";
 import { pool } from "./db.js";
 import REGRAS from "./regras.js";
+import { randomUUID } from "crypto";
 import { loadTokens, saveTokens } from "./tokenStore.js";
 
 const stored = loadTokens();
@@ -386,9 +387,6 @@ app.get("/callback", async (req, res) => {
 });
 
 /* ================= Registra pedido no BD ================= */
-
-import { randomUUID } from "crypto";
-import { pool } from "./db.js";
 
 /**
  * Registra pedido Mercado Livre na tabela pedido_confirmacao
