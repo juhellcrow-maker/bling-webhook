@@ -302,7 +302,7 @@ app.get("/callback", async (req, res) => {
     params.append("redirect_uri", process.env.REDIRECT_URI);
 
     const r = await axios.post(
-      "https://developer.bling.com.br/api/bling/oauth/token",
+      "https://www.bling.com.br/Api/v3/oauth/token",
       params,
       {
         headers: {
