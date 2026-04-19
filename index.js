@@ -268,10 +268,13 @@ async function processarPedidoPorId(id) {
   );
 
   const pedido = r.data.data;
+
+  // ✅ PRIMEIRO: tentar confirmação (funciona no webhook do 462097)
+  await registrarPedidoConfirmacao(pedido);
+
+  // ✅ DEPOIS: aplicar regra (funciona no webhook do status 6)
   const regra = encontrarRegraUnificada(pedido);
   if (!regra) return;
-
-  console.log(`🧠 Aplicando regra: ${regra.nome}`);
 
   if (regra.tipo === "SIMPLES") {
     await alterarStatusPedido(pedido, regra.statusDestino);
@@ -280,11 +283,8 @@ async function processarPedidoPorId(id) {
 
   if (regra.tipo === "ESTOQUE") {
     await processarRegraPorEstoque(pedido, regra);
+    return;
   }
-
-  // ✅ NOVO PASSO: registrar pedido se for ML + Serv-Seg
-  await registrarPedidoConfirmacao(pedido);
-
   console.log(`📦 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
 }
 
