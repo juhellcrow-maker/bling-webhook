@@ -393,6 +393,10 @@ app.get("/callback", async (req, res) => {
  * quando entra no status 462966
  */
 async function registrarPedidoConfirmacao(pedido) {
+  console.log("🔍 DEBUG registrarPedidoConfirmacao");
+  console.log("Loja ID:", pedido.loja.id);
+  console.log("Status ID:", pedido.situacao.id);
+  console.log("Número pedido:", pedido.numero);
   // ✅ Só Mercado Livre
   if (pedido.loja.id !== 204560827 && pedido.loja.id !== 204964661) {
     return;
