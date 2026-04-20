@@ -364,6 +364,22 @@ app.post("/webhook/whatsapp", async (req, res) => {
   }
 });
 
+/*==================ENDPOINT WHATSAPP=================*/
+app.get("/webhook/whatsapp", (req, res) => {
+  const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
+
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    console.log("✅ Webhook WhatsApp verificado com sucesso");
+    return res.status(200).send(challenge);
+  }
+
+  console.warn("❌ Falha na verificação do webhook WhatsApp");
+  return res.sendStatus(403);
+});
 /* ================= PROCESSA CONFIRMACOES ================= */
 
 async function tratarRespostaPedido(buttonId) {
