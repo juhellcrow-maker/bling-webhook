@@ -346,20 +346,32 @@ app.post("/webhook/whatsapp", async (req, res) => {
     const change = entry?.changes?.[0];
     const message = change?.value?.messages?.[0];
 
-    if (!message) return res.sendStatus(200);
+    if (!message) {
+      console.log("ℹ️ Webhook WhatsApp sem message");
+      return res.sendStatus(200);
+    }
 
-    if (message.type !== "interactive") return res.sendStatus(200);
+    if (message.type !== "interactive") {
+      console.log("ℹ️ Mensagem não interativa recebida");
+      return res.sendStatus(200);
+    }
 
     const buttonId = message.interactive?.button_reply?.id;
-    if (!buttonId) return res.sendStatus(200);
 
-    console.log("📲 Clique no WhatsApp:", buttonId);
+    if (!buttonId) {
+      console.log("ℹ️ Interactive sem button_reply");
+      return res.sendStatus(200);
+    }
 
-    await tratarRespostaPedido(buttonId);
+    // ✅ APENAS LOG – NADA DE AÇÃO
+    console.log("📲 ===========================");
+    console.log("📲 CLIQUE WHATSAPP RECEBIDO");
+    console.log("🆔 Button ID:", buttonId);
+    console.log("📲 ===========================");
 
     res.sendStatus(200);
   } catch (e) {
-    console.error("❌ Erro webhook WhatsApp:", e.message);
+    console.error("❌ Erro no webhook WhatsApp:", e.message);
     res.sendStatus(500);
   }
 });
@@ -494,6 +506,9 @@ app.get("/callback", async (req, res) => {
 async function registrarPedidoConfirmacao(pedido) {
   console.log("📲 Cheguei na confirmação | Pedido", pedido.numero,"Status", pedido.situacao.id);
   console.log("📌 Verificando envio de confirmação");
+  
+  // ✅ DEFINA O TELEFONE AQUI
+  const telefoneDeposito = "5516993105050";
 
   // ✅ CONDIÇÃO 1: Loja correta
   if (pedido.loja.id !== 204560827) {
