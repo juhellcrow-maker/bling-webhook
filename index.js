@@ -4,7 +4,7 @@ import { pool } from "./db.js";
 import REGRAS from "./regras.js";
 import { randomUUID } from "crypto";
 import { loadTokens, saveTokens } from "./tokenStore.js";
-import { enviarWhatsAppTeste } from "./notificacoes/whatsapp.js";
+import { enviarWhatsAppTeste, enviarWhatsAppConfirmacaoComBotoes } from "./notificacoes/whatsapp.js";
 const app = express();
 app.use(express.json());
 
@@ -322,7 +322,7 @@ app.get("/debug-pedido/:numero", async (req, res) => {
   }
 });
 
-/* ================= WEBHOOK ================= */
+/* ================= WEBHOOK BLING ================= */
 app.post("/webhook", async (req, res) => {
   if (!WEBHOOK_ATIVO) return res.status(200).send("Webhook desligado");
 
@@ -338,6 +338,54 @@ app.post("/webhook", async (req, res) => {
 
   res.status(200).send("OK");
 });
+
+/* ================= WEBHOOK WHATSAPP ================= */
+app.post("/webhook/whatsapp", async (req, res) => {
+  try {
+    const entry = req.body?.entry?.[0];
+    const change = entry?.changes?.[0];
+    const message = change?.value?.messages?.[0];
+
+    if (!message) return res.sendStatus(200);
+
+    if (message.type !== "interactive") return res.sendStatus(200);
+
+    const buttonId = message.interactive?.button_reply?.id;
+    if (!buttonId) return res.sendStatus(200);
+
+    console.log("📲 Clique no WhatsApp:", buttonId);
+
+    await tratarRespostaPedido(buttonId);
+
+    res.sendStatus(200);
+  } catch (e) {
+    console.error("❌ Erro webhook WhatsApp:", e.message);
+    res.sendStatus(500);
+  }
+});
+
+/* ================= PROCESSA CONFIRMACOES ================= */
+
+async function tratarRespostaPedido(buttonId) {
+  const partes = buttonId.split("_");
+
+  if (partes.length < 3) {
+    console.warn("⚠️ Botão inválido recebido:", buttonId);
+    return;
+  }
+
+  const numeroPedido = partes[1];
+  const acao = partes.slice(2).join("_");
+
+  console.log("📲 ===========================");
+  console.log("📲 RESPOSTA WHATSAPP RECEBIDA");
+  console.log("📦 Pedido:", numeroPedido);
+  console.log("🧠 Ação informada:", acao);
+  console.log("⏰ Data:", new Date().toISOString());
+  console.log("📲 ===========================");
+
+  // 🚫 Nenhuma ação de negócio ainda
+}
 
 
 /* ================= SAÚDE ================= */
@@ -490,15 +538,14 @@ if (existe.rowCount > 0 && permitirReenvio) {
     ]
   );
 
-  // ✅ Monta mensagem com NÚMERO DO PEDIDO E ITENS
-  const mensagem = montarMensagemConfirmacao(pedido);
+  const textoItens = montarTextoItensSimples(pedido);
 
-  // ✅ Número do WhatsApp do depósito
-  const telefoneDeposito = "5516993105050";
-
-  // ✅ Envia WhatsApp
-  await enviarWhatsAppTeste(telefoneDeposito, mensagem);
-
+await enviarWhatsAppConfirmacaoComBotoes({
+  telefone: telefoneDeposito,
+  pedidoNumero: pedido.numero,
+  textoItens
+});
+  
   // ✅ Marca envio no banco
   await pool.query(
     `
@@ -510,6 +557,14 @@ if (existe.rowCount > 0 && permitirReenvio) {
   );
 
   console.log("📲 WhatsApp de confirmação enviado com sucesso");
+}
+
+function montarTextoItensSimples(pedido) {
+  return pedido.itens
+    .map(item =>
+      `• ${item.codigo} - ${item.descricao}\nQuantidade: ${item.quantidade}`
+    )
+    .join("\n\n");
 }
 
 function montarMensagemConfirmacao(pedido) {
