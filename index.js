@@ -8,24 +8,17 @@ import { enviarWhatsAppTeste, enviarWhatsAppConfirmacaoComBotoes } from "./notif
 const app = express();
 app.use(express.json());
 
-/* ================= Envio Mensagem
-app.get("/teste-whatsapp", async (req, res) => {
+/* ================= Teste Supa ================= */
+app.get("/teste-db", async (req, res) => {
   try {
-    // Coloque SEU número pessoal (somente números, com DDI)
-    const telefone = "5516993105050";
-
-    const mensagem =
-      "📦 Teste WhatsApp Cloud API\n\nSe você recebeu isso, a integração está funcionando ✅";
-
-    await enviarWhatsAppTeste(telefone, mensagem);
-
-    res.json({ status: "ok", mensagem: "WhatsApp enviado" });
+    const r = await pool.query("select 1 as ok");
+    res.json(r.rows[0]);
   } catch (e) {
-    console.error("❌ Erro WhatsApp:", e.response?.data || e.message);
-    res.status(500).json({ error: "Erro ao enviar WhatsApp" });
+    res.status(500).json({ erro: e.message });
   }
 });
- ================= */
+
+
 
 /* ================= OAUTH ================= */
 let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
