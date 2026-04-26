@@ -8,32 +8,6 @@ import { enviarWhatsAppTeste, enviarWhatsAppConfirmacaoComBotoes } from "./notif
 const app = express();
 app.use(express.json());
 
-/* ================= Teste Supa ================= */
-app.get("/teste-db", async (req, res) => {
-  try {
-    const r = await pool.query("select 1 as ok");
-    res.json(r.rows[0]);
-  } catch (e) {
-    res.status(500).json({ erro: e.message });
-  }
-  console.log("========== DB DEBUG ==========");
-console.log("DB HOST:", process.env.SUPABASE_DB_HOST);
-console.log("DB PORT:", process.env.SUPABASE_DB_PORT);
-console.log("DB NAME:", process.env.SUPABASE_DB_NAME);
-console.log("DB USER:", process.env.SUPABASE_DB_USER);
-console.log(
-  "DB PASSWORD EXISTS:",
-  Boolean(process.env.SUPABASE_DB_PASSWORD)
-);
-console.log(
-  "DB PASSWORD TYPE:",
-  typeof process.env.SUPABASE_DB_PASSWORD
-);
-console.log("================================");
-
-});
-
-
 
 /* ================= OAUTH ================= */
 let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
