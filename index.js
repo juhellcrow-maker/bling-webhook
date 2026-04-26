@@ -16,7 +16,21 @@ app.get("/teste-db", async (req, res) => {
   } catch (e) {
     res.status(500).json({ erro: e.message });
   }
-  console.log("DB URL definida?", Boolean(process.env.DATABASE_URL));
+  console.log("========== DB DEBUG ==========");
+console.log("DB HOST:", process.env.SUPABASE_DB_HOST);
+console.log("DB PORT:", process.env.SUPABASE_DB_PORT);
+console.log("DB NAME:", process.env.SUPABASE_DB_NAME);
+console.log("DB USER:", process.env.SUPABASE_DB_USER);
+console.log(
+  "DB PASSWORD EXISTS:",
+  Boolean(process.env.SUPABASE_DB_PASSWORD)
+);
+console.log(
+  "DB PASSWORD TYPE:",
+  typeof process.env.SUPABASE_DB_PASSWORD
+);
+console.log("================================");
+
 });
 
 
