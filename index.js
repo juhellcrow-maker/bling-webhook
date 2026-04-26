@@ -16,7 +16,7 @@ app.get("/teste-db", async (req, res) => {
   } catch (e) {
     res.status(500).json({ erro: e.message });
   }
-  console.log("🔍 DB HOST EM USO:", process.env.SUPABASE_DB_HOST);
+  console.log("DB URL definida?", Boolean(process.env.DATABASE_URL));
 });
 
 
