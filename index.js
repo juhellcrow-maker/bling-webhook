@@ -182,7 +182,7 @@ async function lancarEstoquePedidoSeguro(pedidoId, idDeposito) {
   const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}/lancar-estoque/${idDeposito}`;
 
   try {
-    console.log(`📦 Tentando lançar estoque do pedido ${pedidoId} no depósito ${idDeposito}`);
+    console.log(`📦 Tentando lançar estoque do pedido ${pedido.numero} no depósito ${idDeposito}`);
 
     await executarNaFilaBling(() =>
       safeRequest(() =>
