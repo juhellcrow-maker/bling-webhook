@@ -71,7 +71,7 @@ export default [
         nome: "SS Rio Preto",
         depositoId: 14888665295,
         statusDestino: 462097,
-        lancarEstoque: false
+        lancarEstoque: true
       },
       {
         nome: "PS Ribeirão",
@@ -97,7 +97,7 @@ export default [
         nome: "SS Rio Preto",
         depositoId: 14888665295,
         statusDestino: 462097,
-        lancarEstoque: false
+        lancarEstoque: true
       },
       {
         nome: "PS Ribeirão",
