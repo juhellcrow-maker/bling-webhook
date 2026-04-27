@@ -178,11 +178,13 @@ async function pedidoTemSaldoCompletoNoDeposito(pedido, idDeposito) {
 
 /* ================= LANÇAR ESTOQUE (SEGURO / IDEMPOTENTE) ================= */
 
-async function lancarEstoquePedidoSeguro(pedidoId, idDeposito) {
+async function lancarEstoquePedidoSeguro(pedidoId, idDeposito, pedidoNumero = "desconhecido") {
   const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}/lancar-estoque/${idDeposito}`;
 
   try {
-    console.log(`📦 Tentando lançar estoque do pedido ${pedido.numero} no depósito ${idDeposito}`);
+    console.log(
+      `📦 Tentando lançar estoque do pedido ${pedidoNumero} (ID ${pedidoId}) no depósito ${idDeposito}`
+    );
 
     await executarNaFilaBling(() =>
       safeRequest(() =>
@@ -190,7 +192,7 @@ async function lancarEstoquePedidoSeguro(pedidoId, idDeposito) {
       )
     );
 
-    console.log("✅ Estoque lançado com sucesso");
+    console.log(`✅ Estoque lançado com sucesso (Pedido ${pedidoNumero})`);
   } catch (err) {
     const fields = err.response?.data?.error?.fields || [];
 
@@ -199,11 +201,12 @@ async function lancarEstoquePedidoSeguro(pedidoId, idDeposito) {
     );
 
     if (jaLancado) {
-      console.log("ℹ️ Estoque já estava lançado — seguindo fluxo normalmente");
+      console.log(
+        `ℹ️ Estoque do pedido ${pedidoNumero} já estava lançado — seguindo fluxo normalmente`
+      );
       return;
     }
 
-    // ❌ erro real → propaga
     throw err;
   }
 }
@@ -237,10 +240,11 @@ async function processarRegraPorEstoque(pedido, regra) {
 
     if (temSaldo) {
       if (prioridade.lancarEstoque) {
-        await lancarEstoquePedidoSeguro(pedido.id, prioridade.depositoId);
-      }
-
+      await lancarEstoquePedidoSeguro(pedido.id, prioridade.depositoId); }
       await alterarStatusPedido(pedido, prioridade.statusDestino);
+
+      // ✅ GARANTIA FINAL PELO STATUS
+      await lancarEstoqueSeNecessarioPorStatus(pedido, prioridade.statusDestino);
       console.log("✅ Regra aplicada com sucesso");
       return;
     }
