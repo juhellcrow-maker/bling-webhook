@@ -240,7 +240,7 @@ async function processarRegraPorEstoque(pedido, regra) {
 
     if (temSaldo) {
       if (prioridade.lancarEstoque) {
-      await lancarEstoquePedidoSeguro(pedido.id, prioridade.depositoId); }
+      await lancarEstoquePedidoSeguro(pedido.id, prioridade.depositoId, pedido.numero); }
       await alterarStatusPedido(pedido, prioridade.statusDestino);
 
       // ✅ GARANTIA FINAL PELO STATUS
@@ -255,17 +255,37 @@ async function processarRegraPorEstoque(pedido, regra) {
 
 /* ================= STATUS ================= */
 async function alterarStatusPedido(pedido, statusDestino) {
+  if (pedido.situacao.id === statusDestino) {
+    console.log(`ℹ️ Pedido ${pedido.numero} já está no status ${statusDestino} — ignorando alteração`);
+    return;
+  }
+
   const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/${statusDestino}`;
-  console.log(`🚦 Alterando status do pedido ${pedido.numero} → ${statusDestino}`);
 
-  const r = await executarNaFilaBling(() =>
-    safeRequest(() =>
-      axios.patch(url, null, { headers: getHeaders() })
-    )
-  );
+  try {
+    console.log(`🚦 Alterando status do pedido ${pedido.numero} → ${statusDestino}`);
 
-  console.log(`✅ Status alterado | HTTP ${r.status}`);
+    const r = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.patch(url, null, { headers: getHeaders() })
+      )
+    );
+
+    console.log(`✅ Status alterado | HTTP ${r.status}`);
+  } catch (err) {
+    const fields = err.response?.data?.error?.fields || [];
+
+    const mesmaSituacao = fields.some(f => f.code === 50);
+
+    if (mesmaSituacao) {
+      console.log(`ℹ️ Status do pedido ${pedido.numero} já estava em ${statusDestino} — seguindo fluxo`);
+      return;
+    }
+
+    throw err;
+  }
 }
+``
 
 /* ================= LANÇAMENTO AUTOMÁTICO (REGRAS SIMPLES) ================= */
 
