@@ -176,19 +176,38 @@ async function pedidoTemSaldoCompletoNoDeposito(pedido, idDeposito) {
   return true;
 }
 
-/* ================= LANÇAR ESTOQUE ================= */
-async function lancarEstoquePedido(pedidoId, idDeposito) {
+/* ================= LANÇAR ESTOQUE (SEGURO / IDEMPOTENTE) ================= */
+
+async function lancarEstoquePedidoSeguro(pedidoId, idDeposito) {
   const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}/lancar-estoque/${idDeposito}`;
-  console.log(`📦 Lançando estoque do pedido ${pedidoId} no depósito ${idDeposito}`);
 
-  await executarNaFilaBling(() =>
-    safeRequest(() =>
-      axios.post(url, null, { headers: getHeaders() })
-    )
-  );
+  try {
+    console.log(`📦 Tentando lançar estoque do pedido ${pedidoId} no depósito ${idDeposito}`);
 
-  console.log("✅ Estoque lançado com sucesso");
+    await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.post(url, null, { headers: getHeaders() })
+      )
+    );
+
+    console.log("✅ Estoque lançado com sucesso");
+  } catch (err) {
+    const fields = err.response?.data?.error?.fields || [];
+
+    const jaLancado = fields.some(f =>
+      f.code === 61 || f.code === 66
+    );
+
+    if (jaLancado) {
+      console.log("ℹ️ Estoque já estava lançado — seguindo fluxo normalmente");
+      return;
+    }
+
+    // ❌ erro real → propaga
+    throw err;
+  }
 }
+
 
 /* ================= MOTOR DE REGRAS ================= */
 function encontrarRegraUnificada(pedido) {
@@ -218,7 +237,7 @@ async function processarRegraPorEstoque(pedido, regra) {
 
     if (temSaldo) {
       if (prioridade.lancarEstoque) {
-        await lancarEstoquePedido(pedido.id, prioridade.depositoId);
+        await lancarEstoquePedidoSeguro(pedido.id, prioridade.depositoId);
       }
 
       await alterarStatusPedido(pedido, prioridade.statusDestino);
@@ -256,7 +275,7 @@ async function lancarEstoqueSeNecessarioPorStatus(pedido, statusDestino) {
     `(status ${statusDestino}, depósito ${depositoId})`
   );
 
-  await lancarEstoquePedido(pedido.id, depositoId);
+  await lancarEstoquePedidoSeguro(pedido.id, depositoId);
 }
 
 /* ================= PROCESSO ================= */
