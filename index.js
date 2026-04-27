@@ -138,6 +138,12 @@ async function safeRequest(fn, retry = false) {
     throw err;
   }
 }
+/* ================= MAPA STATUS → DEPÓSITO ================= */
+
+const MAPA_LANCAMENTO_POR_STATUS = {
+  462966: 14888631397, // PS Ribeirão
+  462097: 14888665295  // SS Rio Preto
+};
 
 /* ================= ESTOQUE ================= */
 async function consultarSaldoProdutoNoDeposito(idProduto, idDeposito) {
@@ -238,6 +244,21 @@ async function alterarStatusPedido(pedido, statusDestino) {
   console.log(`✅ Status alterado | HTTP ${r.status}`);
 }
 
+/* ================= LANÇAMENTO AUTOMÁTICO (REGRAS SIMPLES) ================= */
+
+async function lancarEstoqueSeNecessarioPorStatus(pedido, statusDestino) {
+  const depositoId = MAPA_LANCAMENTO_POR_STATUS[statusDestino];
+
+  if (!depositoId) return; // status não exige lançamento
+
+  console.log(
+    `📦 Regra SIMPLES → lançando estoque automaticamente ` +
+    `(status ${statusDestino}, depósito ${depositoId})`
+  );
+
+  await lancarEstoquePedido(pedido.id, depositoId);
+}
+
 /* ================= PROCESSO ================= */
 async function processarPedidoPorId(id) {
   const r = await executarNaFilaBling(() =>
@@ -258,10 +279,17 @@ async function processarPedidoPorId(id) {
   const regra = encontrarRegraUnificada(pedido);
   if (!regra) return;
 
-  if (regra.tipo === "SIMPLES") {
-    await alterarStatusPedido(pedido, regra.statusDestino);
-    return;
-  }
+ if (regra.tipo === "SIMPLES") {
+  await alterarStatusPedido(pedido, regra.statusDestino);
+
+  // ✅ NOVO: lança estoque automaticamente conforme status destino
+  await lancarEstoqueSeNecessarioPorStatus(
+    pedido,
+    regra.statusDestino
+  );
+
+  return;
+}
 
   if (regra.tipo === "ESTOQUE") {
     await processarRegraPorEstoque(pedido, regra);
