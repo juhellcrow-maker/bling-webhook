@@ -265,18 +265,20 @@ async function alterarStatusPedido(pedido, statusDestino) {
 
 /* ================= LANÇAMENTO AUTOMÁTICO (REGRAS SIMPLES) ================= */
 
+
 async function lancarEstoqueSeNecessarioPorStatus(pedido, statusDestino) {
   const depositoId = MAPA_LANCAMENTO_POR_STATUS[statusDestino];
 
-  if (!depositoId) return; // status não exige lançamento
+  if (!depositoId) return;
 
   console.log(
-    `📦 Regra SIMPLES → lançando estoque automaticamente ` +
-    `(status ${statusDestino}, depósito ${depositoId})`
+    `📦 Garantindo lançamento de estoque ` +
+    `(Pedido ${pedido.numero}, status ${statusDestino}, depósito ${depositoId})`
   );
 
   await lancarEstoquePedidoSeguro(pedido.id, depositoId);
 }
+
 
 /* ================= PROCESSO ================= */
 async function processarPedidoPorId(id) {
