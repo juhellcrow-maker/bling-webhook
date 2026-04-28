@@ -654,39 +654,58 @@ app.get("/debug-expedicao/nfe/:numero", async (req, res) => {
 /* ================= Lista Nfe Periodo ================= */
 app.get("/debug-expedicao/periodo", async (req, res) => {
   try {
-    const { dataInicial, dataFinal } = req.query;
+    const { data } = req.query;
 
-    if (!dataInicial || !dataFinal) {
+    if (!data) {
       return res.status(400).json({
-        erro: "Informe dataInicial e dataFinal no formato YYYY-MM-DD"
+        erro: "Informe a data no formato YYYY-MM-DD"
       });
     }
 
-    // 1️⃣ Lista NF-e por período (forma correta no Bling)
-    const listaResp = await executarNaFilaBling(() =>
-      safeRequest(() =>
-        axios.get("https://api.bling.com.br/Api/v3/notas-fiscais", {
-          headers: getHeaders(),
-          params: {
-            dataEmissaoInicial: dataInicial,
-            dataEmissaoFinal: dataFinal
-          }
-        })
-      )
-    );
+    // ✅ Período com HORA (obrigatório no Bling)
+    const dataEmissaoInicial = `${data} 00:00:00`;
+    const dataEmissaoFinal   = `${data} 23:59:59`;
 
-    const nfs = listaResp.data.data || [];
+    let pagina = 1;
+    const limite = 100;
+    let totalPaginas = 1;
+    const todasNotas = [];
 
-    // 2️⃣ Consolida checklist de expedição
-    const resultado = nfs.map(nf => {
-      const itens = (nf.itens || []).map(item => ({
-        sku: item.codigo,
-        descricao: item.descricao,
-        quantidade: item.quantidade
+    // 🔁 Paginação obrigatória
+    do {
+      const resp = await executarNaFilaBling(() =>
+        safeRequest(() =>
+          axios.get("https://api.bling.com.br/Api/v3/notas-fiscais", {
+            headers: getHeaders(),
+            params: {
+              pagina,
+              limite,
+              tipo: 1,               // ✅ Saída
+              dataEmissaoInicial,
+              dataEmissaoFinal
+            }
+          })
+        )
+      );
+
+      const dataResp = resp.data?.data || [];
+      const pagination = resp.data?.pagination || {};
+
+      todasNotas.push(...dataResp);
+      totalPaginas = pagination.totalPages || 1;
+      pagina++;
+
+    } while (pagina <= totalPaginas);
+
+    // 📦 Montagem do checklist
+    const notas = todasNotas.map(nf => {
+      const itens = (nf.itens || []).map(i => ({
+        sku: i.codigo,
+        descricao: i.descricao,
+        quantidade: i.quantidade
       }));
 
       const pendencias = [];
-
       if (!nf.numeroPedidoLoja)
         pendencias.push("Pedido da loja virtual ausente");
 
@@ -695,15 +714,17 @@ app.get("/debug-expedicao/periodo", async (req, res) => {
 
       return {
         notaFiscal: {
+          id: nf.id,
           numero: nf.numero,
           serie: nf.serie,
+          situacao: nf.situacao,
           dataEmissao: nf.dataEmissao
         },
         pedidoBling: nf.pedidoVenda?.numero || null,
         pedidoLoja: nf.numeroPedidoLoja || null,
         estoque: {
           lancado: true,
-          origem: "NF-e emitida"
+          origem: "NF-e (estoque obrigatório)"
         },
         itens,
         checklist: {
@@ -713,18 +734,14 @@ app.get("/debug-expedicao/periodo", async (req, res) => {
       };
     });
 
-    // 3️⃣ Resposta final
     res.json({
-      periodo: {
-        dataInicial,
-        dataFinal
-      },
-      totalNotas: resultado.length,
-      notas: resultado
+      data,
+      totalNotas: notas.length,
+      notas
     });
 
   } catch (e) {
-    console.error("❌ Erro no debug por período:", e.message);
+    console.error("❌ Debug expedição período:", e.message);
     res.status(500).json({ erro: e.message });
   }
 });
