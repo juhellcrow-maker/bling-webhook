@@ -178,7 +178,11 @@ async function pedidoTemSaldoCompletoNoDeposito(pedido, idDeposito) {
 
 /* ================= LANÇAR ESTOQUE (SEGURO / IDEMPOTENTE) ================= */
 
-async function lancarEstoquePedidoSeguro(pedidoId, idDeposito, pedidoNumero = "desconhecido") {
+async function lancarEstoquePedidoSeguro(
+  pedidoId,
+  idDeposito,
+  pedidoNumero = "desconhecido"
+) {
   const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}/lancar-estoque/${idDeposito}`;
 
   try {
@@ -194,10 +198,21 @@ async function lancarEstoquePedidoSeguro(pedidoId, idDeposito, pedidoNumero = "d
 
     console.log(`✅ Estoque lançado com sucesso (Pedido ${pedidoNumero})`);
   } catch (err) {
+    const status = err.response?.status;
     const fields = err.response?.data?.error?.fields || [];
 
-    const jaLancado = fields.some(f =>
-      f.code === 61 || f.code === 66
+    // ✅ 1️⃣ Timeout / Bling indisponível
+    if (status === 504) {
+      console.log(
+        `⏳ Timeout ao lançar estoque do pedido ${pedidoNumero}. ` +
+        `Bling indisponível — webhook seguirá fluxo e retry virá automaticamente`
+      );
+      return;
+    }
+
+    // ✅ 2️⃣ Estoque já lançado
+    const jaLancado = fields.some(
+      f => f.code === 61 || f.code === 66
     );
 
     if (jaLancado) {
@@ -207,10 +222,10 @@ async function lancarEstoquePedidoSeguro(pedidoId, idDeposito, pedidoNumero = "d
       return;
     }
 
+    // ❌ 3️⃣ Erro real
     throw err;
   }
 }
-
 
 /* ================= MOTOR DE REGRAS ================= */
 function encontrarRegraUnificada(pedido) {
@@ -300,7 +315,7 @@ async function lancarEstoqueSeNecessarioPorStatus(pedido, statusDestino) {
     `(Pedido ${pedido.numero}, status ${statusDestino}, depósito ${depositoId})`
   );
 
-  await lancarEstoquePedidoSeguro(pedido.id, depositoId);
+  await lancarEstoquePedidoSeguro(pedido.id, depositoId, pedido.numero);
 }
 
 
