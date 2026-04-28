@@ -126,15 +126,31 @@ async function safeRequest(fn, retry = false) {
   } catch (err) {
     if (err.response) {
       const { status, data, config } = err.response;
-      console.error("❌ Erro Bling", status, config?.method, config?.url);
-      if (config?.data) console.error("➡️ Payload:", config.data);
-      if (data) console.error("➡️ Resposta:", JSON.stringify(data, null, 2));
 
+      const fields = data?.error?.fields || [];
+      const isEstoqueJaLancado =
+        config?.url?.includes("/lancar-estoque") &&
+        fields.some(f => f.code === 61 || f.code === 66);
+
+      // ✅ Log apenas se NÃO for estoque já lançado
+      if (!isEstoqueJaLancado) {
+        console.error("❌ Erro Bling", status, config?.method, config?.url);
+        if (config?.data) console.error("➡️ Payload:", config.data);
+        if (data) console.error("➡️ Resposta:", JSON.stringify(data, null, 2));
+      } else {
+        console.log(
+          "ℹ️ Bling informou estoque já lançado (tratado como sucesso lógico)"
+        );
+      }
+
+      // ✅ Renovação de token continua funcionando
       if (status === 401 && !retry) {
         await renovarToken();
         return safeRequest(fn, true);
       }
     }
+
+    // ⚠️ IMPORTANTE: não remover
     throw err;
   }
 }
