@@ -662,7 +662,6 @@ app.get("/debug-expedicao/periodo", async (req, res) => {
       });
     }
 
-    // ✅ Período com HORA (obrigatório no Bling)
     const dataEmissaoInicial = `${data} 00:00:00`;
     const dataEmissaoFinal   = `${data} 23:59:59`;
 
@@ -671,16 +670,15 @@ app.get("/debug-expedicao/periodo", async (req, res) => {
     let totalPaginas = 1;
     const todasNotas = [];
 
-    // 🔁 Paginação obrigatória
     do {
       const resp = await executarNaFilaBling(() =>
         safeRequest(() =>
-          axios.get("https://api.bling.com.br/Api/v3/notas-fiscais", {
+          axios.get("https://api.bling.com.br/Api/v3/nfe", { // ✅ URL CORRETA
             headers: getHeaders(),
             params: {
               pagina,
               limite,
-              tipo: 1,               // ✅ Saída
+              tipo: 1, // Saída
               dataEmissaoInicial,
               dataEmissaoFinal
             }
@@ -697,7 +695,6 @@ app.get("/debug-expedicao/periodo", async (req, res) => {
 
     } while (pagina <= totalPaginas);
 
-    // 📦 Montagem do checklist
     const notas = todasNotas.map(nf => {
       const itens = (nf.itens || []).map(i => ({
         sku: i.codigo,
@@ -706,11 +703,8 @@ app.get("/debug-expedicao/periodo", async (req, res) => {
       }));
 
       const pendencias = [];
-      if (!nf.numeroPedidoLoja)
-        pendencias.push("Pedido da loja virtual ausente");
-
-      if (!itens.length)
-        pendencias.push("NF sem itens");
+      if (!nf.numeroPedidoLoja) pendencias.push("Pedido da loja ausente");
+      if (!itens.length) pendencias.push("NF sem itens");
 
       return {
         notaFiscal: {
@@ -724,7 +718,7 @@ app.get("/debug-expedicao/periodo", async (req, res) => {
         pedidoLoja: nf.numeroPedidoLoja || null,
         estoque: {
           lancado: true,
-          origem: "NF-e (estoque obrigatório)"
+          origem: "NF-e emitida"
         },
         itens,
         checklist: {
@@ -745,6 +739,7 @@ app.get("/debug-expedicao/periodo", async (req, res) => {
     res.status(500).json({ erro: e.message });
   }
 });
+
 
 
 
