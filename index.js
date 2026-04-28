@@ -583,6 +583,110 @@ app.get("/callback", async (req, res) => {
   }
 });
 
+
+/* ================= DEBUG NFE ================= */
+app.get("/debug-expedicao/nfe/:numero", async (req, res) => {
+  try {
+    const numeroNfe = req.params.numero;
+
+    // 1️⃣ Buscar NF-e pelo número
+    const nfBusca = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.get(
+          "https://api.bling.com.br/Api/v3/notas-fiscais",
+          {
+            headers: getHeaders(),
+            params: { numero: numeroNfe }
+          }
+        )
+      )
+    );
+
+    if (!nfBusca.data.data?.length) {
+      return res.status(404).json({
+        erro: "NF-e não encontrada",
+        numero: numeroNfe
+      });
+    }
+
+    const nfe = nfBusca.data.data[0];
+
+    // 2️⃣ Extrair dados principais da NF-e
+    const pedidoVenda = nfe.pedidoVenda || {};
+    const pedidoId = pedidoVenda.id;
+
+    // 3️⃣ Buscar pedido de venda (para logística / etiqueta)
+    let pedido = null;
+    if (pedidoId) {
+      const pedidoResp = await executarNaFilaBling(() =>
+        safeRequest(() =>
+          axios.get(
+            `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}`,
+            { headers: getHeaders() }
+          )
+        )
+      );
+      pedido = pedidoResp.data.data;
+    }
+
+    // 4️⃣ Montar itens da NF
+    const itens = (nfe.itens || []).map(item => ({
+      sku: item.codigo,
+      descricao: item.descricao,
+      quantidade: item.quantidade
+    }));
+
+    // 5️⃣ Extrair etiqueta / rastreamento (se existir)
+    const volumes = pedido?.transporte?.volumes || [];
+    const etiqueta = volumes.find(v => v.codigoRastreamento)?.codigoRastreamento || null;
+
+    // 6️⃣ Checklist final
+    const checklist = {
+      dadosCompletos:
+        !!nfe.numero &&
+        !!pedidoVenda.numero &&
+        !!nfe.numeroPedidoLoja &&
+        itens.length > 0,
+      pendencias: []
+    };
+
+    if (!nfe.numeroPedidoLoja)
+      checklist.pendencias.push("Pedido da loja virtual ausente");
+
+    if (!etiqueta)
+      checklist.pendencias.push("Etiqueta de envio não encontrada");
+
+    // 7️⃣ Resposta consolidada
+    res.json({
+      notaFiscal: {
+        numero: nfe.numero,
+        serie: nfe.serie,
+        dataEmissao: nfe.dataEmissao,
+        chaveAcesso: nfe.chaveAcesso,
+        numeroPedidoLoja: nfe.numeroPedidoLoja
+      },
+      pedidoBling: {
+        id: pedidoVenda.id,
+        numero: pedidoVenda.numero
+      },
+      estoque: {
+        lancado: true,
+        origem: "NF-e emitida"
+      },
+      expedicao: {
+        etiqueta,
+        transportadora: pedido?.transporte?.transportadora?.nome || null
+      },
+      itens,
+      checklist
+    });
+
+  } catch (e) {
+    console.error("❌ Erro no debug de expedição:", e.message);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 /* ================= Registra pedido no BD ================= */
 
 /**
@@ -721,6 +825,7 @@ setInterval(async () => {
   await renovarToken();
 
 }, TOKEN_REFRESH_INTERVAL);
+
 
 /* ================= START ================= */
 app.listen(process.env.PORT || 3000, () => {
