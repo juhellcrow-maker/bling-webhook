@@ -596,7 +596,7 @@ app.get("/debug-expedicao/nfe/:numero", async (req, res) => {
           "https://api.bling.com.br/Api/v3/notas-fiscais",
           {
             headers: getHeaders(),
-            params: { numero: numeroNfe }
+            params: { numero: numeroNfe, serie:0 }
           }
         )
       )
