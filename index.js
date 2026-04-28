@@ -587,105 +587,149 @@ app.get("/callback", async (req, res) => {
 /* ================= DEBUG NFE ================= */
 app.get("/debug-expedicao/nfe/:numero", async (req, res) => {
   try {
-    const numeroNfe = req.params.numero;
+    const numeroNfe = req.params.numero.padStart(6, "0"); // 012149
+    const hoje = new Date().toISOString().slice(0, 10);
 
-    // 1️⃣ Buscar NF-e pelo número
-    const nfBusca = await executarNaFilaBling(() =>
+    // 1️⃣ Lista NF do dia
+    const lista = await executarNaFilaBling(() =>
       safeRequest(() =>
-        axios.get(
-          "https://api.bling.com.br/Api/v3/notas-fiscais",
-          {
-            headers: getHeaders(),
-            params: { numero: numeroNfe, serie:0 }
+        axios.get("https://api.bling.com.br/Api/v3/notas-fiscais", {
+          headers: getHeaders(),
+          params: {
+            dataEmissaoInicial: hoje,
+            dataEmissaoFinal: hoje
           }
-        )
+        })
       )
     );
 
-    if (!nfBusca.data.data?.length) {
+    const nfResumo = lista.data.data?.find(
+      nf => nf.numero === numeroNfe && nf.serie === 0
+    );
+
+    if (!nfResumo) {
       return res.status(404).json({
-        erro: "NF-e não encontrada",
+        erro: "NF não encontrada na listagem do período",
         numero: numeroNfe
       });
     }
 
-    const nfe = nfBusca.data.data[0];
-
-    // 2️⃣ Extrair dados principais da NF-e
-    const pedidoVenda = nfe.pedidoVenda || {};
-    const pedidoId = pedidoVenda.id;
-
-    // 3️⃣ Buscar pedido de venda (para logística / etiqueta)
-    let pedido = null;
-    if (pedidoId) {
-      const pedidoResp = await executarNaFilaBling(() =>
-        safeRequest(() =>
-          axios.get(
-            `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}`,
-            { headers: getHeaders() }
-          )
+    // 2️⃣ Busca NF completa pelo ID
+    const nfDetalhe = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.get(
+          `https://api.bling.com.br/Api/v3/notas-fiscais/${nfResumo.id}`,
+          { headers: getHeaders() }
         )
-      );
-      pedido = pedidoResp.data.data;
-    }
+      )
+    );
 
-    // 4️⃣ Montar itens da NF
-    const itens = (nfe.itens || []).map(item => ({
-      sku: item.codigo,
-      descricao: item.descricao,
-      quantidade: item.quantidade
-    }));
+    const nfe = nfDetalhe.data.data;
 
-    // 5️⃣ Extrair etiqueta / rastreamento (se existir)
-    const volumes = pedido?.transporte?.volumes || [];
-    const etiqueta = volumes.find(v => v.codigoRastreamento)?.codigoRastreamento || null;
-
-    // 6️⃣ Checklist final
-    const checklist = {
-      dadosCompletos:
-        !!nfe.numero &&
-        !!pedidoVenda.numero &&
-        !!nfe.numeroPedidoLoja &&
-        itens.length > 0,
-      pendencias: []
-    };
-
-    if (!nfe.numeroPedidoLoja)
-      checklist.pendencias.push("Pedido da loja virtual ausente");
-
-    if (!etiqueta)
-      checklist.pendencias.push("Etiqueta de envio não encontrada");
-
-    // 7️⃣ Resposta consolidada
     res.json({
       notaFiscal: {
         numero: nfe.numero,
         serie: nfe.serie,
-        dataEmissao: nfe.dataEmissao,
         chaveAcesso: nfe.chaveAcesso,
+        dataEmissao: nfe.dataEmissao,
         numeroPedidoLoja: nfe.numeroPedidoLoja
       },
-      pedidoBling: {
-        id: pedidoVenda.id,
-        numero: pedidoVenda.numero
-      },
+      pedidoBling: nfe.pedidoVenda,
       estoque: {
         lancado: true,
         origem: "NF-e emitida"
       },
-      expedicao: {
-        etiqueta,
-        transportadora: pedido?.transporte?.transportadora?.nome || null
-      },
-      itens,
-      checklist
+      itens: nfe.itens.map(i => ({
+        sku: i.codigo,
+        descricao: i.descricao,
+        quantidade: i.quantidade
+      }))
     });
-
   } catch (e) {
-    console.error("❌ Erro no debug de expedição:", e.message);
+    console.error("❌ Debug expedição:", e.message);
     res.status(500).json({ erro: e.message });
   }
 });
+
+/* ================= Lista Nfe Periodo ================= */
+app.get("/debug-expedicao/periodo", async (req, res) => {
+  try {
+    const { dataInicial, dataFinal } = req.query;
+
+    if (!dataInicial || !dataFinal) {
+      return res.status(400).json({
+        erro: "Informe dataInicial e dataFinal no formato YYYY-MM-DD"
+      });
+    }
+
+    // 1️⃣ Lista NF-e por período (forma correta no Bling)
+    const listaResp = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.get("https://api.bling.com.br/Api/v3/notas-fiscais", {
+          headers: getHeaders(),
+          params: {
+            dataEmissaoInicial: dataInicial,
+            dataEmissaoFinal: dataFinal
+          }
+        })
+      )
+    );
+
+    const nfs = listaResp.data.data || [];
+
+    // 2️⃣ Consolida checklist de expedição
+    const resultado = nfs.map(nf => {
+      const itens = (nf.itens || []).map(item => ({
+        sku: item.codigo,
+        descricao: item.descricao,
+        quantidade: item.quantidade
+      }));
+
+      const pendencias = [];
+
+      if (!nf.numeroPedidoLoja)
+        pendencias.push("Pedido da loja virtual ausente");
+
+      if (!itens.length)
+        pendencias.push("NF sem itens");
+
+      return {
+        notaFiscal: {
+          numero: nf.numero,
+          serie: nf.serie,
+          dataEmissao: nf.dataEmissao
+        },
+        pedidoBling: nf.pedidoVenda?.numero || null,
+        pedidoLoja: nf.numeroPedidoLoja || null,
+        estoque: {
+          lancado: true,
+          origem: "NF-e emitida"
+        },
+        itens,
+        checklist: {
+          status: pendencias.length === 0 ? "OK" : "PENDENTE",
+          pendencias
+        }
+      };
+    });
+
+    // 3️⃣ Resposta final
+    res.json({
+      periodo: {
+        dataInicial,
+        dataFinal
+      },
+      totalNotas: resultado.length,
+      notas: resultado
+    });
+
+  } catch (e) {
+    console.error("❌ Erro no debug por período:", e.message);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
+
 
 /* ================= Registra pedido no BD ================= */
 
