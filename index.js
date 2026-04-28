@@ -593,7 +593,7 @@ app.get("/debug-expedicao/nfe/:numero", async (req, res) => {
     // 1️⃣ Lista NF do dia
     const lista = await executarNaFilaBling(() =>
       safeRequest(() =>
-        axios.get("https://api.bling.com.br/Api/v3/notas-fiscais", {
+        axios.get("https://api.bling.com.br/Api/v3/nfe", {
           headers: getHeaders(),
           params: {
             dataEmissaoInicial: hoje,
