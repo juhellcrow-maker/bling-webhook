@@ -585,68 +585,68 @@ app.get("/callback", async (req, res) => {
 
 
 /* ================= DEBUG NFE ================= */
-app.get("/debug-expedicao/nfe/:numero", async (req, res) => {
+app.get("/debug-expedicao/nfe-id/:id", async (req, res) => {
   try {
-    const numeroNfe = req.params.numero.padStart(6, "0"); // 012149
-    const hoje = new Date().toISOString().slice(0, 10);
+    const idNfe = req.params.id;
 
-    // 1️⃣ Lista NF do dia
-    const lista = await executarNaFilaBling(() =>
-      safeRequest(() =>
-        axios.get("https://api.bling.com.br/Api/v3/nfe", {
-          headers: getHeaders(),
-          params: {
-            dataEmissaoInicial: hoje,
-            dataEmissaoFinal: hoje
-          }
-        })
-      )
-    );
-
-    const nfResumo = lista.data.data?.find(
-      nf => nf.numero === numeroNfe && nf.serie === 0
-    );
-
-    if (!nfResumo) {
-      return res.status(404).json({
-        erro: "NF não encontrada na listagem do período",
-        numero: numeroNfe
-      });
-    }
-
-    // 2️⃣ Busca NF completa pelo ID
-    const nfDetalhe = await executarNaFilaBling(() =>
+    // 1️⃣ Buscar NF-e completa pelo ID
+    const nfResp = await executarNaFilaBling(() =>
       safeRequest(() =>
         axios.get(
-          `https://api.bling.com.br/Api/v3/notas-fiscais/${nfResumo.id}`,
+          `https://api.bling.com.br/Api/v3/nfe/${idNfe}`,
           { headers: getHeaders() }
         )
       )
     );
 
-    const nfe = nfDetalhe.data.data;
+    const nfe = nfResp.data.data;
+
+    if (!nfe) {
+      return res.status(404).json({
+        erro: "NF-e não encontrada",
+        id: idNfe
+      });
+    }
+
+    // 2️⃣ Montar itens
+    const itens = (nfe.itens || []).map(item => ({
+      sku: item.codigo,
+      descricao: item.descricao,
+      quantidade: item.quantidade
+    }));
+
+    // 3️⃣ Checklist
+    const pendencias = [];
+    if (!nfe.numeroPedidoLoja)
+      pendencias.push("Pedido da loja virtual ausente");
+
+    if (!itens.length)
+      pendencias.push("NF sem itens");
 
     res.json({
       notaFiscal: {
+        id: nfe.id,
         numero: nfe.numero,
         serie: nfe.serie,
-        chaveAcesso: nfe.chaveAcesso,
+        situacao: nfe.situacao,
         dataEmissao: nfe.dataEmissao,
+        chaveAcesso: nfe.chaveAcesso,
         numeroPedidoLoja: nfe.numeroPedidoLoja
       },
-      pedidoBling: nfe.pedidoVenda,
+      pedidoBling: nfe.pedidoVenda || null,
       estoque: {
         lancado: true,
         origem: "NF-e emitida"
       },
-      itens: nfe.itens.map(i => ({
-        sku: i.codigo,
-        descricao: i.descricao,
-        quantidade: i.quantidade
-      }))
+      itens,
+      checklist: {
+        status: pendencias.length === 0 ? "OK" : "PENDENTE",
+        pendencias
+      }
     });
+
   } catch (e) {
-    console.error("❌ Debug expedição:", e.message);
+    console.error("❌ Debug expedição por ID:", e.message);
     res.status(500).json({ erro: e.message });
   }
 });
