@@ -9,23 +9,52 @@ const app = express();
 app.use(express.json());
 
 /* ================= Listar depositos ================= */
-async function listarDepositos() {
-  const resp = await executarNaFilaBling(() =>
-    safeRequest(() =>
-      axios.get("https://api.bling.com.br/Api/v3/depositos", {
-        headers: getHeaders(),
-        params: {
-          pagina: 1,
-          limite: 100,
-          situacao: 1
-        }
-      })
-    )
-  );
+app.get("/listarDepositos", async (req, res) => {
+  try {
+    let pagina = 1;
+    const limite = 100;
+    let totalPaginas = 1;
+    const depositos = [];
 
-  return resp.data.data;
-}
+    do {
+      const resp = await executarNaFilaBling(() =>
+        safeRequest(() =>
+          axios.get("https://api.bling.com.br/Api/v3/depositos", {
+            headers: getHeaders(),
+            params: {
+              pagina,
+              limite,
+              situacao: 1 // somente depósitos ativos
+            }
+          })
+        )
+      );
 
+      const data = resp.data?.data || [];
+      const pagination = resp.data?.pagination || {};
+
+      depositos.push(...data);
+      totalPaginas = pagination.totalPages || 1;
+      pagina++;
+
+    } while (pagina <= totalPaginas);
+
+    // Retorno simplificado (ideal para visualização)
+    res.json({
+      total: depositos.length,
+      depositos: depositos.map(d => ({
+        id: d.id,
+        descricao: d.descricao,
+        padrao: d.padrao,
+        desconsiderarSaldo: d.desconsiderarSaldo
+      }))
+    });
+
+  } catch (e) {
+    console.error("❌ Erro ao listar depósitos:", e.message);
+    res.status(500).json({ erro: e.message });
+  }
+});
 
 
 /* ================= OAUTH ================= */
