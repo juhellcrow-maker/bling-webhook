@@ -30,6 +30,15 @@ export default [
     statusDestino: 462097
   },
 
+  {
+    nome: "ML MATRIZ - SERV-SEG CATANDUVA",
+    lojaId: 204560827,
+    statusOrigem: 6,
+    tipo: "SIMPLES",
+    condicaoUnidade: 2586356, // Serv-Seg Rio Preto
+    statusDestino: 462099
+  },
+
   /* =========================================================
    * AMAZON – MATRIZ
    * Decisão por estoque (Rio Preto → Ribeirão)
@@ -70,6 +79,12 @@ export default [
       {
         nome: "SS Rio Preto",
         depositoId: 14888665295,
+        statusDestino: 462097,
+        lancarEstoque: true
+      },
+      {
+        nome: "SS Catanduva",
+        depositoId: 14888906921,
         statusDestino: 462097,
         lancarEstoque: true
       },
