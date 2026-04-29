@@ -206,7 +206,8 @@ async function safeRequest(fn, retry = false) {
 
 const MAPA_LANCAMENTO_POR_STATUS = {
   462966: 14888631397, // PS Ribeirão
-  462097: 14888665295  // SS Rio Preto
+  462097: 14888665295,  // SS Rio Preto
+  462099: 14888906921 // SS Catanduva
 };
 
 /* ================= ESTOQUE ================= */
