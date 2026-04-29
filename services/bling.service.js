@@ -1,24 +1,80 @@
-// services/bling.service.js
+/**
+ * services/bling.service.js
+ *
+ * Responsabilidade:
+ * - Autenticação OAuth com o Bling
+ * - Manter estado dos tokens em memória
+ * - Renovação automática de token
+ * - Fila para respeitar rate limit do Bling
+ * - Helper de chamada segura (safeRequest)
+ *
+ * 👉 ESTE ARQUIVO É O CORAÇÃO DA INTEGRAÇÃO COM O BLING
+ */
+
 import axios from "axios";
 import { loadTokens, saveTokens } from "../tokenStore.js";
 
+/* ======================================================
+   OAUTH – ESTADO GLOBAL
+   ====================================================== */
+
+// Tokens carregados de ENV ou atualizados via refresh
 let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
 let REFRESH_TOKEN = process.env.REFRESH_TOKEN;
+
+// Estado do refresh (usado para health e controle)
+let ultimoRefreshToken = 0;
+let ultimoRefreshStatus = "unknown";
 let refreshEmAndamento = false;
 
+// Credenciais do app Bling
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 
-// ===== Headers =====
+/* ======================================================
+   BOOTSTRAP DOS TOKENS (STARTUP)
+   ====================================================== */
+
+// Restaura tokens salvos em disco (tokenStore)
+const stored = loadTokens();
+
+if (stored) {
+  ACCESS_TOKEN = stored.access_token;
+  REFRESH_TOKEN = stored.refresh_token;
+  console.log("🔐 Tokens restaurados do storage");
+}
+
+// Se já existe refresh token, força refresh no startup
+// Isso evita usar token expirado na primeira chamada
+if (REFRESH_TOKEN) {
+  console.log("🔁 Executando refresh inicial no startup");
+  renovarToken();
+}
+
+/* ======================================================
+   HEADERS PADRÃO PARA API DO BLING
+   ====================================================== */
+
 export const getHeaders = () => ({
   Authorization: `Bearer ${ACCESS_TOKEN}`,
   Accept: "application/json"
 });
 
-// ===== Fila Bling =====
+/* ======================================================
+   FILA DO BLING (RATE LIMIT)
+   ====================================================== */
+
+// O Bling não tolera muitas chamadas simultâneas.
+// Aqui garantimos:
+// - Apenas 1 chamada por vez
+// - Delay mínimo entre chamadas
+
 const filaBling = [];
 let processandoFila = false;
 
+/**
+ * Enfileira qualquer chamada que vá falar com o Bling
+ */
 export async function executarNaFilaBling(fn) {
   return new Promise((resolve, reject) => {
     filaBling.push({ fn, resolve, reject });
@@ -26,35 +82,48 @@ export async function executarNaFilaBling(fn) {
   });
 }
 
+/**
+ * Processa a fila respeitando o intervalo mínimo
+ */
 async function processarFila() {
   if (processandoFila || filaBling.length === 0) return;
-  processandoFila = true;
 
+  processandoFila = true;
   const { fn, resolve, reject } = filaBling.shift();
+
   try {
-    const r = await fn();
-    resolve(r);
+    const resultado = await fn();
+    resolve(resultado);
   } catch (e) {
     reject(e);
   } finally {
+    // ⏱️ Delay obrigatório para evitar bloqueio do Bling
     await new Promise(r => setTimeout(r, 400));
     processandoFila = false;
     processarFila();
   }
 }
 
-// ===== Token =====
+/* ======================================================
+   RENOVAÇÃO DE TOKEN
+   ====================================================== */
+
+/**
+ * Renova o access token usando o refresh token.
+ * - Atualiza memória
+ * - Persiste em disco
+ * - Atualiza estado para health check
+ */
 export async function renovarToken() {
   if (refreshEmAndamento) return;
   refreshEmAndamento = true;
 
   try {
-    const params = new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: REFRESH_TOKEN,
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET
-    });
+    const params = new URLSearchParams();
+    params.append("grant_type", "refresh_token");
+    params.append("refresh_token", REFRESH_TOKEN);
+    params.append("client_id", CLIENT_ID);
+    params.append("client_secret", CLIENT_SECRET);
 
     const r = await axios.post(
       "https://developer.bling.com.br/api/bling/oauth/token",
@@ -64,24 +133,112 @@ export async function renovarToken() {
 
     ACCESS_TOKEN = r.data.access_token;
     REFRESH_TOKEN = r.data.refresh_token;
-    saveTokens({ access_token: ACCESS_TOKEN, refresh_token: REFRESH_TOKEN });
 
+    // Persistência CRÍTICA
+    saveTokens({
+      access_token: ACCESS_TOKEN,
+      refresh_token: REFRESH_TOKEN
+    });
+
+    ultimoRefreshToken = Date.now();
+    ultimoRefreshStatus = "ok";
+
+    console.log("🔁 Token renovado automaticamente");
+  } catch (e) {
+    ultimoRefreshStatus = "error";
+    console.error(
+      "❌ Falha ao renovar token:",
+      e.response?.data || e.message
+    );
   } finally {
     refreshEmAndamento = false;
   }
 }
 
-// ===== Safe request =====
+/* ======================================================
+   SAFE REQUEST
+   ====================================================== */
+
+/**
+ * Executa uma chamada de API do Bling com:
+ * - Retry automático em 401
+ * - Tratamento de erro inteligente
+ * - Ignora erro de estoque já lançado (61 / 66)
+ */
 export async function safeRequest(fn, retry = false) {
   try {
     return await fn();
   } catch (err) {
-    const status = err.response?.status;
+    if (err.response) {
+      const { status, data, config } = err.response;
+      const fields = data?.error?.fields || [];
 
-    if (status === 401 && !retry) {
-      await renovarToken();
-      return safeRequest(fn, true);
+      const isEstoqueJaLancado =
+        config?.url?.includes("/lancar-estoque") &&
+        fields.some(f => f.code === 61 || f.code === 66);
+
+      if (!isEstoqueJaLancado) {
+        console.error("❌ Erro Bling", status, config?.method, config?.url);
+        if (config?.data) console.error("➡️ Payload:", config.data);
+        if (data) console.error("➡️ Resposta:", JSON.stringify(data, null, 2));
+      } else {
+        console.log(
+          "ℹ️ Bling informou estoque já lançado (tratado como sucesso lógico)"
+        );
+      }
+
+      // Token expirado → tenta renovar e repetir
+      if (status === 401 && !retry) {
+        await renovarToken();
+        return safeRequest(fn, true);
+      }
     }
+
+    // Erro real → sobe para quem chamou
     throw err;
   }
 }
+
+/* ======================================================
+   AUTO REFRESH DE TOKEN
+   ====================================================== */
+
+// Garante que o token nunca expire em produção
+const TOKEN_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutos
+
+setInterval(async () => {
+  if (!REFRESH_TOKEN) {
+    console.warn("⚠️ Refresh token ausente, não foi possível renovar");
+    return;
+  }
+
+  console.log("⏳ Renovação automática de token em execução");
+  await renovarToken();
+}, TOKEN_REFRESH_INTERVAL);
+
+/* ======================================================
+   HEALTH CHECK (USADO NA ROTA /health/oauth)
+   ====================================================== */
+
+export function getOAuthHealth() {
+  const agora = Date.now();
+  const MAX_DELAY = 30 * 60 * 1000;
+
+  if (ultimoRefreshToken === 0 && REFRESH_TOKEN) {
+    return {
+      status: "ok",
+      oauth: "starting",
+      message: "Servidor recém-iniciado, aguardando primeiro refresh"
+    };
+  }
+
+  if (
+    ultimoRefreshStatus === "ok" &&
+    agora - ultimoRefreshToken < MAX_DELAY
+  ) {
+    return { status: "ok", oauth: "active" };
+  }
+
+  return { status: "error", oauth: "stale" };
+}
+``
