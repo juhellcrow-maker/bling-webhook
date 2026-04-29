@@ -8,6 +8,25 @@ import { enviarWhatsAppTeste, enviarWhatsAppConfirmacaoComBotoes } from "./notif
 const app = express();
 app.use(express.json());
 
+/* ================= Listar depositos ================= */
+async function listarDepositos() {
+  const resp = await executarNaFilaBling(() =>
+    safeRequest(() =>
+      axios.get("https://api.bling.com.br/Api/v3/depositos", {
+        headers: getHeaders(),
+        params: {
+          pagina: 1,
+          limite: 100,
+          situacao: 1
+        }
+      })
+    )
+  );
+
+  return resp.data.data;
+}
+
+
 
 /* ================= OAUTH ================= */
 let ACCESS_TOKEN = process.env.ACCESS_TOKEN;
