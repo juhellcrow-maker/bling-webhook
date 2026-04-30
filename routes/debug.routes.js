@@ -269,6 +269,141 @@ router.get("/debug-expedicao/nfe-id/:id", async (req, res) => {
 });
 
 /* ======================================================
+   DEBUG – EXPEDIÇÃO
+   ====================================================== */
+
+/**
+ * DEBUG OPERACIONAL – EXPEDIÇÃO
+ * Valida todos os campos antes de persistir no banco
+ */
+
+router.get("/debug-pedido-expedicao/:numero", async (req, res) => {
+  try {
+    const { numero } = req.params;
+
+    const normalizeArray = (v) => !v ? [] : Array.isArray(v) ? v : [v];
+
+    /* ======================================================
+       1️⃣ BUSCA PEDIDO
+       ====================================================== */
+    const busca = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.get(
+          `https://api.bling.com.br/Api/v3/pedidos/vendas?numero=${numero}`,
+          { headers: getHeaders() }
+        )
+      )
+    );
+
+    if (!busca.data.data?.length) {
+      return res.status(404).json({ erro: "Pedido não encontrado" });
+    }
+
+    const pedidoId = busca.data.data[0].id;
+
+    const detalhe = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.get(
+          `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}`,
+          { headers: getHeaders() }
+        )
+      )
+    );
+
+    const pedido = detalhe.data.data;
+
+    /* ======================================================
+       2️⃣ CANAL DE VENDA (REGRA INTERNA)
+       ====================================================== */
+    const MAPA_CANAL = {
+      205415213: "AMZ Filial",
+      204782103: "AMZ Matriz",
+      204964661: "ML Filial",
+      204560827: "ML Matriz"
+    };
+
+    const canalVenda = MAPA_CANAL[pedido.loja.id] || "Desconhecido";
+
+    /* ======================================================
+       3️⃣ DEPÓSITO (REGRA INTERNA)
+       ====================================================== */
+    const depositoLancado = MAPA_LANCAMENTO_POR_STATUS[pedido.situacao.id] || null;
+
+    /* ======================================================
+       4️⃣ ITENS
+       ====================================================== */
+    const itens = normalizeArray(pedido.itens).map(i => ({
+      sku: i.codigo,
+      descricao: i.descricao,
+      quantidade: i.quantidade
+    }));
+
+    /* ======================================================
+       5️⃣ NF – BUSCA NÚMERO
+       ====================================================== */
+    let notaFiscal = null;
+
+    if (pedido.notaFiscal?.id) {
+      const nfResp = await executarNaFilaBling(() =>
+        safeRequest(() =>
+          axios.get(
+            `https://api.bling.com.br/Api/v3/nfe/${pedido.notaFiscal.id}`,
+            { headers: getHeaders() }
+          )
+        )
+      );
+
+      const nf = nfResp.data.data;
+      notaFiscal = {
+        id: nf.id,
+        numero: nf.numero,
+        serie: nf.serie
+      };
+    }
+
+    /* ======================================================
+       6️⃣ RASTREAMENTO
+       ====================================================== */
+    const rastreamentos = normalizeArray(pedido.transporte?.volumes)
+      .map(v => v.codigoRastreamento)
+      .filter(Boolean);
+
+    /* ======================================================
+       7️⃣ OBJETO FINAL (PRONTO PARA BANCO)
+       ====================================================== */
+    const debugExpedicao = {
+      pedido: {
+        numero: pedido.numero,
+        numeroLoja: pedido.numeroLoja
+      },
+      canalVenda,
+      lojaId: pedido.loja.id,
+      depositoLancado,
+      itens,
+      notaFiscal,
+      rastreamentos
+    };
+
+    /* ======================================================
+       8️⃣ LOG OPERACIONAL
+       ====================================================== */
+    console.log("📦 DEBUG EXPEDIÇÃO");
+    console.log(`Pedido: ${pedido.numero}`);
+    console.log(`Canal: ${canalVenda}`);
+    console.log(`Depósito: ${depositoLancado}`);
+    console.log(`Itens: ${itens.length}`);
+    console.log(`NF: ${notaFiscal?.numero || "N/A"}`);
+    console.log(`Rastreio: ${rastreamentos.join(", ") || "N/A"}`);
+
+    res.json(debugExpedicao);
+
+  } catch (e) {
+    console.error("❌ Erro no debug de expedição:", e.message);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
+/* ======================================================
    DEBUG – LISTA NF-e POR PERÍODO
    ====================================================== */
 
