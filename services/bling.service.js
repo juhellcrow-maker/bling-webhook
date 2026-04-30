@@ -241,3 +241,11 @@ export function getOAuthHealth() {
 
   return { status: "error", oauth: "stale" };
 }
+
+export function atualizarTokens(accessToken, refreshToken) {
+  ACCESS_TOKEN = accessToken;
+  REFRESH_TOKEN = refreshToken;
+
+  ultimoRefreshToken = Date.now();
+  ultimoRefreshStatus = "ok";
+}
