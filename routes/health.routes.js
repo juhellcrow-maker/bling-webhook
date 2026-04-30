@@ -56,7 +56,13 @@ router.get("/health/oauth", (req, res) => {
     return res.status(200).json(health);
   }
 
-  console.warn("⚠️ OAuth possível problema", health);
+  if (health.oauth === "stale") {
+    return res.status(200).json({
+      ...health,
+      warning: "OAuth aguardando nova janela de refresh"
+    });
+  }
+
   return res.status(500).json(health);
 });
 
