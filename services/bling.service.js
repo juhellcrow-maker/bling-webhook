@@ -242,10 +242,13 @@ export function getOAuthHealth() {
   return { status: "error", oauth: "stale" };
 }
 
+// ✅ Atualiza os tokens em memória após OAuth manual
 export function atualizarTokens(accessToken, refreshToken) {
   ACCESS_TOKEN = accessToken;
   REFRESH_TOKEN = refreshToken;
 
   ultimoRefreshToken = Date.now();
   ultimoRefreshStatus = "ok";
+
+  console.log("🔑 Tokens atualizados em memória via OAuth callback");
 }
