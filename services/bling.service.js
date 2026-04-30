@@ -145,6 +145,10 @@ export async function renovarToken() {
 
     console.log("🔁 Token renovado automaticamente");
   } catch (e) {
+    if (e.response?.status === 429) {
+    console.warn("⚠️ OAuth: rate limit atingido, mantendo token atual");
+    return;
+     }
     ultimoRefreshStatus = "error";
     console.error(
       "❌ Falha ao renovar token:",
@@ -204,7 +208,7 @@ export async function safeRequest(fn, retry = false) {
    ====================================================== */
 
 // Garante que o token nunca expire em produção
-const TOKEN_REFRESH_INTERVAL = 10 * 60 * 1000; // 10 minutos
+const TOKEN_REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutos
 
 setInterval(async () => {
   if (!REFRESH_TOKEN) {
