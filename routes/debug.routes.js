@@ -24,16 +24,19 @@ const router = Router();
    ====================================================== */
 
 /**
- * Debug avançado de pedido
- * Fonte rica para análise, auditoria e base futura de expedição
+ * DEBUG AVANÇADO DE PEDIDO (ALINHADO AO SCHEMA OFICIAL BLING)
+ * Fonte rica para auditoria, expedição e persistência futura
  */
 
 router.get("/debug-pedido/:numero", async (req, res) => {
   try {
     const { numero } = req.params;
 
+    const normalizeArray = (value) =>
+      !value ? [] : Array.isArray(value) ? value : [value];
+
     /* ======================================================
-       1️⃣ BUSCA PEDIDO PELO NÚMERO
+       1️⃣ BUSCA ID DO PEDIDO PELO NÚMERO
        ====================================================== */
     const busca = await executarNaFilaBling(() =>
       safeRequest(() =>
@@ -51,7 +54,7 @@ router.get("/debug-pedido/:numero", async (req, res) => {
     const pedidoId = busca.data.data[0].id;
 
     /* ======================================================
-       2️⃣ BUSCA DETALHE COMPLETO DO PEDIDO
+       2️⃣ BUSCA DETALHE COMPLETO
        ====================================================== */
     const detalhe = await executarNaFilaBling(() =>
       safeRequest(() =>
@@ -67,6 +70,23 @@ router.get("/debug-pedido/:numero", async (req, res) => {
     /* ======================================================
        3️⃣ MONTA DEBUG ENRIQUECIDO
        ====================================================== */
+
+    const itens = normalizeArray(pedido.itens).map(item => ({
+      sku: item.codigo,
+      descricao: item.descricao,
+      quantidade: item.quantidade,
+      valorUnitario: item.valor,
+      valorTotal: item.quantidade * item.valor
+    }));
+
+    const taxas = normalizeArray(pedido.taxas).map(t => ({
+      taxaComissao: t.taxaComissao || null,
+      custoFrete: t.custoFrete || null,
+      valorBase: t.valorBase || null
+    }));
+
+    const volumes = normalizeArray(pedido.transporte?.volumes);
+
     const debug = {
       pedido: {
         id: pedido.id,
@@ -79,68 +99,59 @@ router.get("/debug-pedido/:numero", async (req, res) => {
 
       status: {
         id: pedido.situacao?.id,
-        nome: pedido.situacao?.nome,
+        descricao: pedido.situacao?.valor,
         atendido: pedido.situacao?.id === 9
       },
 
       loja: {
         id: pedido.loja?.id,
-        nome: pedido.loja?.nome,
-        canal: pedido.loja?.descricao || pedido.loja?.nome,
-        unidadeNegocio: pedido.loja?.unidadeNegocio?.id || null
+        unidadeNegocio: pedido.loja?.unidadeNegocio?.id || null,
+        canal: pedido.loja?.nome || pedido.loja?.descricao || null
       },
 
-      cliente: pedido.contato
-        ? {
-            nome: pedido.contato.nome,
-            documento: pedido.contato.numeroDocumento || null,
-            telefone: pedido.contato.telefone || null,
-            email: pedido.contato.email || null
-          }
-        : null,
+      cliente: pedido.contato ? {
+        nome: pedido.contato.nome,
+        documento: pedido.contato.numeroDocumento || null,
+        telefone: pedido.contato.telefone || null,
+        email: pedido.contato.email || null
+      } : null,
 
       valores: {
         produtos: pedido.totalProdutos,
-        outrasDespesas: pedido.outrasDespesas,
+        total: pedido.total,
+        outrasDespesas: pedido.outrasDespesas || 0,
         desconto: pedido.desconto?.valor || 0,
-        taxas: pedido.taxas?.map(t => ({
-          tipo: t.tipo,
-          valor: t.valor
-        })) || [],
-        total: pedido.total
+        taxas
       },
 
-      itens: pedido.itens.map(item => ({
-        sku: item.codigo,
-        descricao: item.descricao,
-        quantidade: item.quantidade,
-        valorUnitario: item.valor,
-        valorTotal: item.quantidade * item.valor
-      })),
+      itens,
 
-      notaFiscal: pedido.notaFiscal
-        ? {
-            id: pedido.notaFiscal.id,
-            numero: pedido.notaFiscal.numero,
-            serie: pedido.notaFiscal.serie,
-            chaveAcesso: pedido.notaFiscal.chaveAcesso,
-            situacao: pedido.notaFiscal.situacao
-          }
-        : null,
+      notaFiscal: pedido.notaFiscal ? {
+        id: pedido.notaFiscal.id
+      } : null,
 
-      transporte: pedido.transporte
-        ? {
-            transportadora:
-              pedido.transporte.transportador?.nome || null,
-            valorFrete: pedido.transporte.valorFrete || null,
-            volumes: pedido.transporte.volumes || []
-          }
-        : null,
+      tributacao: pedido.tributacao ? {
+        icms: pedido.tributacao.totalICMS || null,
+        ipi: pedido.tributacao.totalIPI || null
+      } : null,
+
+      transporte: pedido.transporte ? {
+        fretePorConta: pedido.transporte.fretePorConta || null,
+        valorFrete: pedido.transporte.frete || null,
+        quantidadeVolumes: pedido.transporte.quantidadeVolumes || null,
+        pesoBruto: pedido.transporte.pesoBruto || null,
+        prazoEntrega: pedido.transporte.prazoEntrega || null,
+        transportadora: pedido.transporte.contato?.nome || null,
+        etiqueta: pedido.transporte.etiqueta || null,
+        volumes
+      } : null,
 
       comercial: {
-        vendedor: pedido.vendedor?.nome || null,
-        intermediador: pedido.intermediador?.nome || null,
-        cnpjIntermediador: pedido.intermediador?.cnpj || null
+        vendedorId: pedido.vendedor?.id || null,
+        intermediador: pedido.intermediador ? {
+          nomeUsuario: pedido.intermediador.nomeUsuario || null,
+          cnpj: pedido.intermediador.cnpj || null
+        } : null
       },
 
       observacoes: {
@@ -150,8 +161,8 @@ router.get("/debug-pedido/:numero", async (req, res) => {
 
       auditoria: {
         statusAtendido: pedido.situacao?.id === 9,
-        prontoParaExpedicao:
-          pedido.situacao?.id === 9 && !!pedido.notaFiscal
+        possuiNF: !!pedido.notaFiscal,
+        prontoParaExpedicao: pedido.situacao?.id === 9 && !!pedido.notaFiscal
       }
     };
 
@@ -161,16 +172,10 @@ router.get("/debug-pedido/:numero", async (req, res) => {
     console.log("🧾 DEBUG PEDIDO");
     console.log(`📦 Pedido: ${debug.pedido.numero}`);
     console.log(`🏬 Canal: ${debug.loja.canal}`);
-    console.log(`🚦 Status: ${debug.status.nome}`);
+    console.log(`🚦 Status: ${debug.status.descricao}`);
     console.log(`📦 Itens: ${debug.itens.length}`);
-    if (debug.notaFiscal) {
-      console.log(
-        `📄 NF-e: ${debug.notaFiscal.numero}/${debug.notaFiscal.serie}`
-      );
-    }
-    console.log(
-      `✅ Pronto para expedição: ${debug.auditoria.prontoParaExpedicao}`
-    );
+    console.log(`📄 Possui NF: ${!!debug.notaFiscal}`);
+    console.log(`✅ Pronto expedição: ${debug.auditoria.prontoParaExpedicao}`);
 
     /* ======================================================
        5️⃣ RESPOSTA
