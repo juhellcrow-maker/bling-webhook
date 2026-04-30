@@ -24,18 +24,17 @@ const router = Router();
    ====================================================== */
 
 /**
- * Retorna os detalhes COMPLETOS de um pedido
- * a partir do número visível no Bling.
- *
- * GET /debug-pedido/:numero
+ * Debug avançado de pedido
+ * Fonte rica para análise, auditoria e base futura de expedição
  */
+
 router.get("/debug-pedido/:numero", async (req, res) => {
   try {
     const { numero } = req.params;
 
-    /* ---------------------------
-       BUSCA ID DO PEDIDO
-       --------------------------- */
+    /* ======================================================
+       1️⃣ BUSCA PEDIDO PELO NÚMERO
+       ====================================================== */
     const busca = await executarNaFilaBling(() =>
       safeRequest(() =>
         axios.get(
@@ -49,21 +48,134 @@ router.get("/debug-pedido/:numero", async (req, res) => {
       return res.status(404).json({ erro: "Pedido não encontrado" });
     }
 
-    const idPedido = busca.data.data[0].id;
+    const pedidoId = busca.data.data[0].id;
 
-    /* ---------------------------
-       BUSCA DETALHE COMPLETO
-       --------------------------- */
+    /* ======================================================
+       2️⃣ BUSCA DETALHE COMPLETO DO PEDIDO
+       ====================================================== */
     const detalhe = await executarNaFilaBling(() =>
       safeRequest(() =>
         axios.get(
-          `https://api.bling.com.br/Api/v3/pedidos/vendas/${idPedido}`,
+          `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}`,
           { headers: getHeaders() }
         )
       )
     );
 
-    res.json(detalhe.data.data);
+    const pedido = detalhe.data.data;
+
+    /* ======================================================
+       3️⃣ MONTA DEBUG ENRIQUECIDO
+       ====================================================== */
+    const debug = {
+      pedido: {
+        id: pedido.id,
+        numero: pedido.numero,
+        numeroLoja: pedido.numeroLoja,
+        dataPedido: pedido.data,
+        dataSaida: pedido.dataSaida,
+        dataPrevista: pedido.dataPrevista
+      },
+
+      status: {
+        id: pedido.situacao?.id,
+        nome: pedido.situacao?.nome,
+        atendido: pedido.situacao?.id === 9
+      },
+
+      loja: {
+        id: pedido.loja?.id,
+        nome: pedido.loja?.nome,
+        canal: pedido.loja?.descricao || pedido.loja?.nome,
+        unidadeNegocio: pedido.loja?.unidadeNegocio?.id || null
+      },
+
+      cliente: pedido.contato
+        ? {
+            nome: pedido.contato.nome,
+            documento: pedido.contato.numeroDocumento || null,
+            telefone: pedido.contato.telefone || null,
+            email: pedido.contato.email || null
+          }
+        : null,
+
+      valores: {
+        produtos: pedido.totalProdutos,
+        outrasDespesas: pedido.outrasDespesas,
+        desconto: pedido.desconto?.valor || 0,
+        taxas: pedido.taxas?.map(t => ({
+          tipo: t.tipo,
+          valor: t.valor
+        })) || [],
+        total: pedido.total
+      },
+
+      itens: pedido.itens.map(item => ({
+        sku: item.codigo,
+        descricao: item.descricao,
+        quantidade: item.quantidade,
+        valorUnitario: item.valor,
+        valorTotal: item.quantidade * item.valor
+      })),
+
+      notaFiscal: pedido.notaFiscal
+        ? {
+            id: pedido.notaFiscal.id,
+            numero: pedido.notaFiscal.numero,
+            serie: pedido.notaFiscal.serie,
+            chaveAcesso: pedido.notaFiscal.chaveAcesso,
+            situacao: pedido.notaFiscal.situacao
+          }
+        : null,
+
+      transporte: pedido.transporte
+        ? {
+            transportadora:
+              pedido.transporte.transportador?.nome || null,
+            valorFrete: pedido.transporte.valorFrete || null,
+            volumes: pedido.transporte.volumes || []
+          }
+        : null,
+
+      comercial: {
+        vendedor: pedido.vendedor?.nome || null,
+        intermediador: pedido.intermediador?.nome || null,
+        cnpjIntermediador: pedido.intermediador?.cnpj || null
+      },
+
+      observacoes: {
+        cliente: pedido.observacoes || null,
+        internas: pedido.observacoesInternas || null
+      },
+
+      auditoria: {
+        statusAtendido: pedido.situacao?.id === 9,
+        prontoParaExpedicao:
+          pedido.situacao?.id === 9 && !!pedido.notaFiscal
+      }
+    };
+
+    /* ======================================================
+       4️⃣ LOG OPERACIONAL LIMPO
+       ====================================================== */
+    console.log("🧾 DEBUG PEDIDO");
+    console.log(`📦 Pedido: ${debug.pedido.numero}`);
+    console.log(`🏬 Canal: ${debug.loja.canal}`);
+    console.log(`🚦 Status: ${debug.status.nome}`);
+    console.log(`📦 Itens: ${debug.itens.length}`);
+    if (debug.notaFiscal) {
+      console.log(
+        `📄 NF-e: ${debug.notaFiscal.numero}/${debug.notaFiscal.serie}`
+      );
+    }
+    console.log(
+      `✅ Pronto para expedição: ${debug.auditoria.prontoParaExpedicao}`
+    );
+
+    /* ======================================================
+       5️⃣ RESPOSTA
+       ====================================================== */
+    res.json(debug);
 
   } catch (e) {
     console.error("❌ Erro no debug do pedido:", e.message);
