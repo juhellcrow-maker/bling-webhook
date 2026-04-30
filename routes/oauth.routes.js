@@ -59,6 +59,13 @@ router.get("/callback", async (req, res) => {
       refresh_token: r.data.refresh_token
     });
 
+     
+   atualizarTokens(
+      r.data.access_token,
+     r.data.refresh_token
+   );
+
+
     console.log("✅ OAuth concluído com sucesso");
 
     res.send(
