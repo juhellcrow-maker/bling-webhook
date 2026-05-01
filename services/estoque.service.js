@@ -131,7 +131,6 @@ export async function lancarEstoqueUmaVez(
       pedido_numero,
       pedido_numero_loja,
       loja_id,
-      canal_venda,
       deposito_lancado,
       data_lancamento_estoque,
       status_bling
