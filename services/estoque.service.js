@@ -136,47 +136,23 @@ export async function lancarEstoquePedidoSeguro(
     );
 
     console.log(`✅ Estoque lançado com sucesso (Pedido ${pedidoNumero})`);
-    
-     } catch (err) {
+    estoqueLancadoOuJaExistente = true;
+
+  } catch (err) {
     const status = err.response?.status;
     const fields = err.response?.data?.error?.fields || [];
 
-     
+    const jaLancado = fields.some(f => f.code === 61 || f.code === 66);
 
-    /* ---------------------------
-       CASO 1 – Timeout do Bling
-       --------------------------- */
-    if (status === 504) {
+    if (status === 504 || jaLancado) {
       console.log(
-        `⏳ Timeout ao lançar estoque do pedido ${pedidoNumero}. ` +
-        `Bling indisponível — seguindo fluxo normalmente`
+        `ℹ️ Estoque do pedido ${pedidoNumero} já estava lançado`
       );
-      return;
+      estoqueLancadoOuJaExistente = true;
+    } else {
+      throw err;
     }
-
-    /* ---------------------------
-       CASO 2 – Estoque já lançado
-       --------------------------- */
-    const jaLancado = fields.some(
-      f => f.code === 61 || f.code === 66
-    );
-
-    if (jaLancado) {
-      console.log(
-        `ℹ️ Estoque do pedido ${pedidoNumero} ` +
-        `já estava lançado — seguindo fluxo normalmente`
-      );
-       estoqueLancadoOuJaExistente = true;
-      return;
-    }
-
-    /* ---------------------------
-       CASO 3 – Erro real
-       --------------------------- */
-    throw err;
   }
-}
-
 
   /* ======================================================
      ✅ UPSERT ETAPA 1 — SEMPRE EXECUTA SE DEPÓSITO EXISTE
@@ -216,7 +192,6 @@ export async function lancarEstoquePedidoSeguro(
     console.log(`🗄️ Pedido ${pedidoNumero} registrado no banco (Etapa 1)`);
   }
 }
-
 /* ======================================================
    LANÇAMENTO AUTOMÁTICO VIA STATUS
    ====================================================== */
