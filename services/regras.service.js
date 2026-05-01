@@ -201,6 +201,5 @@ if (regra.tipo === "SIMPLES") {
   }
 
   console.log(`📦 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
-
-  module.exports = {processarPedidoPorId}
 }
+module.exports = {processarPedidoPorId};
