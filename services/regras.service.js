@@ -139,7 +139,7 @@ async function alterarStatusPedido(pedido, statusDestino) {
  * - Registra confirmação (WhatsApp)
  * - Aplica regras
  */
-export async function processarPedidoPorId(idPedido) {
+async function processarPedidoPorId(idPedido) {
   const resp = await executarNaFilaBling(() =>
     safeRequest(() =>
       axios.get(
@@ -200,7 +200,7 @@ if (regra.tipo === "SIMPLES") {
     return;
   }
 
-  console.log(
-    `📦 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`
-  );
+  console.log(`📦 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
+
+  module.exports = {processarPedidoPorId}
 }
