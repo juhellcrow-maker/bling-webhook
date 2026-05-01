@@ -100,7 +100,7 @@ async function processarRegraPorEstoque(pedido, regra) {
     // 2️⃣ Altera status do pedido
     await alterarStatusPedido(
       pedido,
-      statusDestino
+      prioridade.statusDestino
     );
 
     console.log("✅ Regra aplicada com sucesso");
