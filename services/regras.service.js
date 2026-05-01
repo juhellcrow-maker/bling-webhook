@@ -21,7 +21,7 @@ import {
 
 import {
   pedidoTemSaldoCompletoNoDeposito,
-  lancarEstoquePedidoSeguro,
+   lancarEstoqueUmaVez,
   lancarEstoqueSeNecessarioPorStatus
 } from "./estoque.service.js";
 
@@ -75,7 +75,7 @@ async function processarRegraPorEstoque(pedido, regra) {
 
     // 1️⃣ Lança estoque se a prioridade exigir
     if (prioridade.lancarEstoque) {
-      await lancarEstoquePedidoSeguro(
+      await  lancarEstoqueUmaVez(
         pedido.id,
         prioridade.depositoId,
         pedido.numero
