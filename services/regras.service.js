@@ -15,6 +15,9 @@ import REGRAS from "../rules/regras.js";
 import {executarNaFilaBling, safeRequest, getHeaders} from "./bling.service.js";
 import {pedidoTemSaldoCompletoNoDeposito, lancarEstoqueUmaVez} from "./estoque.service.js";
 import { registrarPedidoConfirmacao } from "./confirmacao.service.js";
+import { BuscarCanalVenda } from "../config/canaisVenda.js";
+import { registrarLancamentoEstoque } from "./expedicao.service.js";
+
 
 const MAPA_DEPOSITO_POR_STATUS = {
   462966: 14888631397, // PS-Ribeirão Preto
@@ -71,23 +74,7 @@ async function processarRegraPorEstoque(pedido, regra) {
     // ✅ AQUI ENTRA O CÓDIGO DE DEFINIÇÃO DO DEPÓSITO
     
    const depositoId = MAPA_DEPOSITO_POR_STATUS[prioridade.statusDestino];
-      
-    /*/if (prioridade.nome === "SS-Rio Preto") {
-      depositoId = 14888665295;
-    } else if (prioridade.nome === "SS-Catanduva") {
-      depositoId = 14888906921;
-    } else if (prioridade.nome === "SS-Itapetininga") {
-      depositoId = 14888908738;
-    } else if (prioridade.nome === "SS-Sorocaba") {
-      depositoId = 14888908737;
-    } else if (prioridade.nome === "PS-Ribeirao Preto") {
-      depositoId = 14888631397;
-    } else if (prioridade.nome === "PS-Franca") {
-      depositoId = 14888617606;
-    } else if (prioridade.nome === "PS-Sao Carlos") {
-      depositoId = 14888909510;
-    }}*/
-
+        
     if (!depositoId) {
       throw new Error("Depósito não definido para este pedido");
     }
@@ -167,6 +154,7 @@ async function alterarStatusPedido(pedido, statusDestino) {
  * - Aplica regras
  */
 export async function processarPedidoPorId(idPedido) {
+  const canalVenda = BuscarCanalVenda(pedido.loja.id);
   const resp = await executarNaFilaBling(() =>
     safeRequest(() =>
       axios.get(
@@ -210,11 +198,19 @@ export async function processarPedidoPorId(idPedido) {
     );
   }
 
-  // 3️⃣ Lança estoque (OBRIGATÓRIO agora)
+  // 3️⃣ Lança estoque 
   await lancarEstoqueUmaVez(
     pedido,
     depositoId
   );
+
+  // 3️⃣ Inseri regisro BD 
+await registrarLancamentoEstoque({
+  pedido,
+  depositoId,
+  canalVenda
+});
+
 
   return;
 }
