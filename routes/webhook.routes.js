@@ -9,6 +9,7 @@
  */
 
 import { Router } from "express";
+import { getOAuthHealth } from "../services/bling.service.js";
 import { processarPedidoPorId } from "../services/regras.service.js";
 
 const router = Router();
@@ -37,6 +38,19 @@ router.post("/webhook", async (req, res) => {
       return res.status(200).send("Webhook desligado");
     }
 
+    // ✅ AQUI É O MELHOR LUGAR PARA O CHECK DE OAUTH
+    const health = getOAuthHealth();
+
+    if (health.status === "error") {
+      console.warn(
+        "⚠️ OAuth indisponível — webhook ignorado temporariamente",
+        health
+      );
+
+      // Importante: continuar respondendo 200 para não gerar retry
+      return res.status(200).send("OAuth indisponível");
+    }
+
     const idPedido = req.body?.data?.id;
 
     if (!idPedido) {
@@ -51,11 +65,8 @@ router.post("/webhook", async (req, res) => {
 
   } catch (e) {
     console.error("❌ Erro no webhook Bling:", e.message);
-    // Importante: SEMPRE retornar 200 para o Bling
-    // para evitar reenvio infinito
   }
 
+  // ⚠️ SEMPRE responde 200 ao Bling
   res.status(200).send("OK");
 });
-
-export default router;
