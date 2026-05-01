@@ -73,13 +73,23 @@ async function processarRegraPorEstoque(pedido, regra) {
     if (!temSaldo) continue;
     // ✅ AQUI ENTRA O CÓDIGO DE DEFINIÇÃO DO DEPÓSITO
       let depositoId;
-      if (prioridade.nome === "SS Rio Preto") {
-        depositoId = 14888665295;
-      } else if (prioridade.nome === "SS Catanduva") {
-        depositoId = 14888906921;
-      } else if (prioridade.nome === "PS Ribeirão") {
-        depositoId = 14888631397;
-      }
+      
+    if (prioridade.nome === "SS-Rio Preto") {
+      depositoId = 14888665295;
+    } else if (prioridade.nome === "SS-Catanduva") {
+      depositoId = 14888906921;
+    } else if (prioridade.nome === "SS-Itapetininga") {
+      depositoId = 14888908738;
+    } else if (prioridade.nome === "SS-Sorocaba") {
+      depositoId = 14888908737;
+    } else if (prioridade.nome === "PS-Ribeirao Preto") {
+      depositoId = 14888631397;
+    } else if (prioridade.nome === "PS-Franca") {
+      depositoId = 14888617606;
+    } else if (prioridade.nome === "PS-Sao Carlos") {
+      depositoId = 14888909510;
+    }
+
     if (!depositoId) {
       throw new Error("Depósito não definido para este pedido");
     }
@@ -88,8 +98,7 @@ async function processarRegraPorEstoque(pedido, regra) {
     if (prioridade.lancarEstoque) {
       await  lancarEstoqueUmaVez(
         pedido.id,
-        prioridade.depositoId,
-        pedido.numero
+        prioridade.depositoId        
       );
     }
 
