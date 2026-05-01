@@ -70,9 +70,9 @@ async function processarRegraPorEstoque(pedido, regra) {
     if (!temSaldo) continue;
     // ✅ AQUI ENTRA O CÓDIGO DE DEFINIÇÃO DO DEPÓSITO
     
-    let depositoId;
+   const depositoId = MAPA_DEPOSITO_POR_STATUS[prioridade.statusDestino];
       
-    if (prioridade.nome === "SS-Rio Preto") {
+    /*/if (prioridade.nome === "SS-Rio Preto") {
       depositoId = 14888665295;
     } else if (prioridade.nome === "SS-Catanduva") {
       depositoId = 14888906921;
@@ -86,7 +86,7 @@ async function processarRegraPorEstoque(pedido, regra) {
       depositoId = 14888617606;
     } else if (prioridade.nome === "PS-Sao Carlos") {
       depositoId = 14888909510;
-    }
+    }}*/
 
     if (!depositoId) {
       throw new Error("Depósito não definido para este pedido");
@@ -94,10 +94,7 @@ async function processarRegraPorEstoque(pedido, regra) {
 
     // 1️⃣ Lança estoque se a prioridade exigir
     if (prioridade.lancarEstoque) {
-      await  lancarEstoqueUmaVez(
-        pedido.id,
-        prioridade.depositoId        
-      );
+      await  lancarEstoqueUmaVez(pedido,depositoId);
     }
 
     // 2️⃣ Altera status do pedido
@@ -105,12 +102,6 @@ async function processarRegraPorEstoque(pedido, regra) {
       pedido,
       prioridade.statusDestino
     );
-
-    depositoId = MAPA_DEPOSITO_POR_STATUS[prioridade.statusDestino];
-    
-    if (depositoId) {
-      await lancarEstoqueUmaVez(pedido, depositoId);
-    }
 
     console.log("✅ Regra aplicada com sucesso");
     return;
@@ -203,20 +194,30 @@ export async function processarPedidoPorId(idPedido) {
   /* ---------------------------
      REGRA SIMPLES
      --------------------------- */
-  if (regra.tipo === "SIMPLES") {
-    await alterarStatusPedido(
-      pedido,
-      regra.statusDestino
+ if (regra.tipo === "SIMPLES") {
+  // 1️⃣ Altera o status
+  await alterarStatusPedido(
+    pedido,
+    regra.statusDestino
+  );
+
+  // 2️⃣ Resolve depósito pelo status
+  const depositoId = MAPA_DEPOSITO_POR_STATUS[regra.statusDestino];
+
+  if (!depositoId) {
+    throw new Error(
+      `Depósito não definido para o status ${regra.statusDestino}`
     );
-
-    depositoId = MAPA_DEPOSITO_POR_STATUS[prioridade.statusDestino];
-    if (depositoId) {
-      await lancarEstoqueUmaVez(pedido, depositoId);
-    }
-
-
-    return;
   }
+
+  // 3️⃣ Lança estoque (OBRIGATÓRIO agora)
+  await lancarEstoqueUmaVez(
+    pedido,
+    depositoId
+  );
+
+  return;
+}
 
   /* ---------------------------
      REGRA POR ESTOQUE
