@@ -69,7 +69,8 @@ async function processarRegraPorEstoque(pedido, regra) {
 
     if (!temSaldo) continue;
     // ✅ AQUI ENTRA O CÓDIGO DE DEFINIÇÃO DO DEPÓSITO
-      let depositoId;
+    
+    let depositoId;
       
     if (prioridade.nome === "SS-Rio Preto") {
       depositoId = 14888665295;
@@ -105,7 +106,7 @@ async function processarRegraPorEstoque(pedido, regra) {
       prioridade.statusDestino
     );
 
-    const depositoId = MAPA_DEPOSITO_POR_STATUS[prioridade.statusDestino];
+    depositoId = MAPA_DEPOSITO_POR_STATUS[prioridade.statusDestino];
     
     if (depositoId) {
       await lancarEstoqueUmaVez(pedido, depositoId);
@@ -208,7 +209,7 @@ export async function processarPedidoPorId(idPedido) {
       regra.statusDestino
     );
 
-    const depositoId = MAPA_DEPOSITO_POR_STATUS[prioridade.statusDestino];
+    depositoId = MAPA_DEPOSITO_POR_STATUS[prioridade.statusDestino];
     if (depositoId) {
       await lancarEstoqueUmaVez(pedido, depositoId);
     }
