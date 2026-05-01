@@ -26,6 +26,7 @@ let REFRESH_TOKEN = process.env.REFRESH_TOKEN;
 let ultimoRefreshToken = 0;
 let ultimoRefreshStatus = "unknown";
 let refreshEmAndamento = false;
+let tokenInvalido = false;
 
 // Credenciais do app Bling
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -146,9 +147,21 @@ export async function renovarToken() {
     console.log("🔁 Token renovado automaticamente");
   } catch (e) {
     if (e.response?.status === 429) {
-    console.warn("⚠️ OAuth: rate limit atingido, mantendo token atual");
-    return;
+      if (tokenInvalido) {
+       ultimoRefreshStatus = "error";
+       console.error(
+         "❌ OAuth bloqueado: token inválido e refresh limitado. " +
+         "Processamento suspenso até nova autorização."
+       );
+
+       throw new Error("OAUTH_INVALID_TOKEN_RATE_LIMIT");
      }
+
+        console.warn(
+          "⚠️ OAuth: rate limit atingido, mas token ainda válido — mantendo token atual"
+        );
+        return;
+      }
     ultimoRefreshStatus = "error";
     console.error(
       "❌ Falha ao renovar token:",
@@ -176,6 +189,10 @@ export async function safeRequest(fn, retry = false) {
     if (err.response) {
       const { status, data, config } = err.response;
       const fields = data?.error?.fields || [];
+      
+      if (status === 401) {
+        tokenInvalido = true;
+      }
 
       const isEstoqueJaLancado =
         config?.url?.includes("/lancar-estoque") &&
@@ -253,6 +270,6 @@ export function atualizarTokens(accessToken, refreshToken) {
 
   ultimoRefreshToken = Date.now();
   ultimoRefreshStatus = "ok";
-
+  tokenInvalido = false;
   console.log("🔑 Tokens atualizados em memória via OAuth callback");
 }
