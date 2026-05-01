@@ -86,7 +86,7 @@ async function processarRegraPorEstoque(pedido, regra) {
     await registrarLancamentoEstoque({pedido, depositoId, canalVenda});
 
     console.log("✅ Regra aplicada com sucesso");
-
+  }
     return;
 
 /* ======================================================
