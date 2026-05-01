@@ -61,14 +61,16 @@ async function processarRegraPorEstoque(pedido, regra) {
   console.log(`🧠 Avaliando regra por estoque: ${regra.nome}`);
 
   for (const prioridade of regra.prioridades) {
-    const temSaldo = await pedidoTemSaldoCompletoNoDeposito(pedido, prioridade.depositoId);
+    const temSaldo = await pedidoTemSaldoCompletoNoDeposito(
+      pedido,
+      prioridade.depositoId
+    );
 
     console.log(`📦 ${prioridade.nome} → saldo ok: ${temSaldo}`);
 
     if (!temSaldo) continue;
-    // ✅ AQUI ENTRA O CÓDIGO DE DEFINIÇÃO DO DEPÓSITO
-    
-    // 1️⃣ ALTERA STATUS PELO STATUS DESTINO DA PRIORIDADE
+
+    // 1️⃣ ALTERA STATUS
     await alterarStatusPedido(pedido, prioridade.statusDestino);
 
     // 2️⃣ ATUALIZA STATUS EM MEMÓRIA
@@ -76,18 +78,25 @@ async function processarRegraPorEstoque(pedido, regra) {
 
     // 3️⃣ RESOLVE DEPÓSITO PELO STATUS
     const depositoId = MAPA_DEPOSITO_POR_STATUS[prioridade.statusDestino];
-    if (!depositoId) {throw new Error(`Depósito não definido para o status ${prioridade.statusDestino}`);}
+    if (!depositoId) {
+      throw new Error(
+        `Depósito não definido para o status ${prioridade.statusDestino}`
+      );
+    }
 
     // 4️⃣ LANÇA ESTOQUE
     await lancarEstoqueUmaVez(pedido, depositoId);
 
     // 5️⃣ REGISTRA NO BANCO
     const canalVenda = BuscarCanalVenda(pedido.loja.id);
-    await registrarLancamentoEstoque({pedido, depositoId, canalVenda});
+    await registrarLancamentoEstoque({ pedido, depositoId, canalVenda });
 
     console.log("✅ Regra aplicada com sucesso");
+    return; // ✅ return AQUI (dentro da função)
   }
-    return;
+
+  console.log("⚠️ Nenhuma prioridade com saldo — ação manual");
+}
 
 /* ======================================================
    ALTERAÇÃO DE STATUS DO PEDIDO
