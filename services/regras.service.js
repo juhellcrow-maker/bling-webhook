@@ -71,6 +71,18 @@ async function processarRegraPorEstoque(pedido, regra) {
     );
 
     if (!temSaldo) continue;
+    // ✅ AQUI ENTRA O CÓDIGO DE DEFINIÇÃO DO DEPÓSITO
+      let depositoId;
+      if (prioridade.nome === "SS Rio Preto") {
+        depositoId = 14888665295;
+      } else if (prioridade.nome === "SS Catanduva") {
+        depositoId = 14888906921;
+      } else if (prioridade.nome === "PS Ribeirão") {
+        depositoId = 14888631397;
+      }
+    if (!depositoId) {
+      throw new Error("Depósito não definido para este pedido");
+    }
 
     // 1️⃣ Lança estoque se a prioridade exigir
     if (prioridade.lancarEstoque) {
@@ -86,9 +98,6 @@ async function processarRegraPorEstoque(pedido, regra) {
       pedido,
       prioridade.statusDestino
     );
-
-    // 3️⃣ Garantia final de estoque por status
-    await lancarEstoqueUmaVez(pedido, depositoId, canalVenda);
 
     console.log("✅ Regra aplicada com sucesso");
     return;
@@ -187,7 +196,7 @@ export async function processarPedidoPorId(idPedido) {
       regra.statusDestino
     );
 
-    await lancarEstoqueUmaVez(pedido, depositoId, canalVenda);
+    await lancarEstoqueUmaVez(pedido, depositoId);
 
     return;
   }
