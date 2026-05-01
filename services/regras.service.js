@@ -21,8 +21,7 @@ import {
 
 import {
   pedidoTemSaldoCompletoNoDeposito,
-   lancarEstoqueUmaVez,
-  lancarEstoqueSeNecessarioPorStatus
+  lancarEstoqueUmaVez
 } from "./estoque.service.js";
 
 import { registrarPedidoConfirmacao } from "./confirmacao.service.js";
@@ -89,10 +88,7 @@ async function processarRegraPorEstoque(pedido, regra) {
     );
 
     // 3️⃣ Garantia final de estoque por status
-    await lancarEstoqueSeNecessarioPorStatus(
-      pedido,
-      prioridade.statusDestino
-    );
+    await lancarEstoqueUmaVez(pedido, depositoId, canalVenda);
 
     console.log("✅ Regra aplicada com sucesso");
     return;
@@ -191,10 +187,7 @@ export async function processarPedidoPorId(idPedido) {
       regra.statusDestino
     );
 
-    await lancarEstoqueSeNecessarioPorStatus(
-      pedido,
-      regra.statusDestino
-    );
+    await lancarEstoqueUmaVez(pedido, depositoId, canalVenda);
 
     return;
   }
