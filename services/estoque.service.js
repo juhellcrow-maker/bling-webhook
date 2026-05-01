@@ -124,7 +124,7 @@ export async function lancarEstoqueUmaVez(
 
   /* ---------------------------
      3️⃣ REGISTRA NO BANCO (ETAPA 1)
-     --------------------------- */
+    
   await pool.query(
     `
     INSERT INTO pedidos_expedicao (
@@ -141,13 +141,12 @@ export async function lancarEstoqueUmaVez(
       pedido.numero,
       pedido.numeroLoja,
       pedido.loja.id,
-      canalVenda,
       depositoId,
       pedido.situacao.id
     ]
-  );
+  ); 
 
   console.log(
     `🗄️ Pedido ${pedidoNumero} registrado no banco (Etapa 1)`
-  );
+  );--------------------------- */
 }
