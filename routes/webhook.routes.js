@@ -70,3 +70,4 @@ router.post("/webhook", async (req, res) => {
   // ⚠️ SEMPRE responde 200 ao Bling
   res.status(200).send("OK");
 });
+export default router;
