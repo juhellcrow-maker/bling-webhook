@@ -72,9 +72,8 @@ export async function pedidoTemSaldoCompletoNoDeposito(pedido, idDeposito) {
  */
 export async function lancarEstoqueUmaVez(
   pedido,
-  depositoId,
-  canalVenda
-) {
+  depositoId
+  ) {
   const pedidoNumero = pedido.numero;
   const pedidoId = pedido.id;
 
