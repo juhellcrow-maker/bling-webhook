@@ -61,41 +61,33 @@ async function processarRegraPorEstoque(pedido, regra) {
   console.log(`🧠 Avaliando regra por estoque: ${regra.nome}`);
 
   for (const prioridade of regra.prioridades) {
-    const temSaldo = await pedidoTemSaldoCompletoNoDeposito(
-      pedido,
-      prioridade.depositoId
-    );
+    const temSaldo = await pedidoTemSaldoCompletoNoDeposito(pedido, prioridade.depositoId);
 
-    console.log(
-      `📦 ${prioridade.nome} → saldo ok: ${temSaldo}`
-    );
+    console.log(`📦 ${prioridade.nome} → saldo ok: ${temSaldo}`);
 
     if (!temSaldo) continue;
     // ✅ AQUI ENTRA O CÓDIGO DE DEFINIÇÃO DO DEPÓSITO
     
-   const depositoId = MAPA_DEPOSITO_POR_STATUS[prioridade.statusDestino];
-        
-    if (!depositoId) {
-      throw new Error("Depósito não definido para este pedido");
-    }
+    // 1️⃣ ALTERA STATUS PELO STATUS DESTINO DA PRIORIDADE
+    await alterarStatusPedido(pedido, prioridade.statusDestino);
 
-    // 1️⃣ Lança estoque se a prioridade exigir
-    if (prioridade.lancarEstoque) {
-      await  lancarEstoqueUmaVez(pedido,depositoId);
-    }
+    // 2️⃣ ATUALIZA STATUS EM MEMÓRIA
+    pedido.situacao.id = prioridade.statusDestino;
 
-    // 2️⃣ Altera status do pedido
-    await alterarStatusPedido(
-      pedido,
-      prioridade.statusDestino
-    );
+    // 3️⃣ RESOLVE DEPÓSITO PELO STATUS
+    const depositoId = MAPA_DEPOSITO_POR_STATUS[prioridade.statusDestino];
+    if (!depositoId) {throw new Error(`Depósito não definido para o status ${prioridade.statusDestino}`);}
+
+    // 4️⃣ LANÇA ESTOQUE
+    await lancarEstoqueUmaVez(pedido, depositoId);
+
+    // 5️⃣ REGISTRA NO BANCO
+    const canalVenda = BuscarCanalVenda(pedido.loja.id);
+    await registrarLancamentoEstoque({pedido, depositoId, canalVenda});
 
     console.log("✅ Regra aplicada com sucesso");
-    return;
-  }
 
-  console.log("⚠️ Nenhuma prioridade com saldo — ação manual");
-}
+    return;
 
 /* ======================================================
    ALTERAÇÃO DE STATUS DO PEDIDO
@@ -107,9 +99,7 @@ async function processarRegraPorEstoque(pedido, regra) {
  */
 async function alterarStatusPedido(pedido, statusDestino) {
   if (pedido.situacao.id === statusDestino) {
-    console.log(
-      `ℹ️ Pedido ${pedido.numero} já está no status ${statusDestino}`
-    );
+    console.log(`ℹ️ Pedido ${pedido.numero} já está no status ${statusDestino}`);
     return;
   }
 
@@ -117,9 +107,7 @@ async function alterarStatusPedido(pedido, statusDestino) {
     `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/${statusDestino}`;
 
   try {
-    console.log(
-      `🚦 Alterando status do pedido ${pedido.numero} → ${statusDestino}`
-    );
+    console.log(`🚦 Alterando status do pedido ${pedido.numero} → ${statusDestino}`);
 
     const r = await executarNaFilaBling(() =>
       safeRequest(() =>
@@ -133,9 +121,7 @@ async function alterarStatusPedido(pedido, statusDestino) {
     const mesmaSituacao = (statusHttp === 400 && fields.some(f => f.code === 50));
 
     if (mesmaSituacao) {
-      console.log(
-        `ℹ️ Status do pedido ${pedido.numero} já estava em ${statusDestino}`
-      );
+      console.log(`ℹ️ Status do pedido ${pedido.numero} já estava em ${statusDestino}`);
       return;
     }
 
@@ -182,39 +168,30 @@ export async function processarPedidoPorId(idPedido) {
   /* ---------------------------
      REGRA SIMPLES
      --------------------------- */
- if (regra.tipo === "SIMPLES") {
-  // 1️⃣ Altera o status
-  await alterarStatusPedido(
-    pedido,
-    regra.statusDestino
-  );
+if (regra.tipo === "SIMPLES") {
 
-  // 2️⃣ Resolve depósito pelo status
+  // 1️⃣ ALTERA O STATUS (PASSO PRINCIPAL)
+  await alterarStatusPedido(pedido, regra.statusDestino);
+
+  // 2️⃣ ATUALIZA STATUS NO OBJETO EM MEMÓRIA
+  pedido.situacao.id = regra.statusDestino;
+
+  // 3️⃣ RESOLVE DEPÓSITO PELO STATUS
   const depositoId = MAPA_DEPOSITO_POR_STATUS[regra.statusDestino];
-
   if (!depositoId) {
-    throw new Error(
-      `Depósito não definido para o status ${regra.statusDestino}`
-    );
+    throw new Error(`Depósito não definido para o status ${regra.statusDestino}`);
   }
 
-  // 3️⃣ Lança estoque 
-  await lancarEstoqueUmaVez(
-    pedido,
-    depositoId
-  );
+  // 4️⃣ LANÇA ESTOQUE
+  await lancarEstoqueUmaVez(pedido, depositoId);
 
-  // 3️⃣ Inseri regisro BD 
-await registrarLancamentoEstoque({
-  pedido,
-  depositoId,
-  canalVenda
-});
-
+  // 5️⃣ REGISTRA NO BANCO (EXPEDIÇÃO)
+  const canalVenda = BuscarCanalVenda(pedido.loja.id);
+  await registrarLancamentoEstoque({pedido, depositoId, canalVenda});
 
   return;
 }
-
+  
   /* ---------------------------
      REGRA POR ESTOQUE
      --------------------------- */
