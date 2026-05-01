@@ -12,19 +12,16 @@
 
 import axios from "axios";
 import REGRAS from "../rules/regras.js";
-
-import {
-  executarNaFilaBling,
-  safeRequest,
-  getHeaders
-} from "./bling.service.js";
-
-import {
-  pedidoTemSaldoCompletoNoDeposito,
-  lancarEstoqueUmaVez
-} from "./estoque.service.js";
-
+import {executarNaFilaBling, safeRequest, getHeaders} from "./bling.service.js";
+import {pedidoTemSaldoCompletoNoDeposito, lancarEstoqueUmaVez} from "./estoque.service.js";
 import { registrarPedidoConfirmacao } from "./confirmacao.service.js";
+
+const MAPA_DEPOSITO_POR_STATUS = {
+  462966: 14888631397, // PS-Ribeirão Preto
+  462097: 14888665295, // SS-Rio Preto
+  462099: 14888906921  // SS-Catanduva
+};
+
 
 /* ======================================================
    LOCALIZA A REGRA APLICÁVEL AO PEDIDO
@@ -107,6 +104,12 @@ async function processarRegraPorEstoque(pedido, regra) {
       pedido,
       prioridade.statusDestino
     );
+
+    const depositoId = MAPA_DEPOSITO_POR_STATUS[prioridade.statusDestino];
+    
+    if (depositoId) {
+      await lancarEstoqueUmaVez(pedido, depositoId);
+    }
 
     console.log("✅ Regra aplicada com sucesso");
     return;
@@ -205,7 +208,11 @@ export async function processarPedidoPorId(idPedido) {
       regra.statusDestino
     );
 
-    await lancarEstoqueUmaVez(pedido, depositoId);
+    const depositoId = MAPA_DEPOSITO_POR_STATUS[prioridade.statusDestino];
+    if (depositoId) {
+      await lancarEstoqueUmaVez(pedido, depositoId);
+    }
+
 
     return;
   }
