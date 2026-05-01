@@ -154,7 +154,6 @@ async function alterarStatusPedido(pedido, statusDestino) {
  * - Aplica regras
  */
 export async function processarPedidoPorId(idPedido) {
-  const canalVenda = BuscarCanalVenda(pedido.loja.id);
   const resp = await executarNaFilaBling(() =>
     safeRequest(() =>
       axios.get(
@@ -165,6 +164,7 @@ export async function processarPedidoPorId(idPedido) {
   );
 
   const pedido = resp.data.data;
+  const canalVenda = BuscarCanalVenda(pedido.loja.id);
 
   /* ---------------------------
      ETAPA 1 – CONFIRMAÇÃO
