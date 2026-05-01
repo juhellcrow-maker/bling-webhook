@@ -110,12 +110,18 @@ export async function pedidoTemSaldoCompletoNoDeposito(
  * @param {number} idDeposito
  * @param {string} pedidoNumero
  */
+
 export async function lancarEstoquePedidoSeguro(
-  pedidoId,
+  pedido,
   idDeposito,
-  pedidoNumero = "desconhecido"
+  canalVenda
 ) {
+  const pedidoId = pedido.id;
+  const pedidoNumero = pedido.numero;
+
   const url = `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedidoId}/lancar-estoque/${idDeposito}`;
+
+  let estoqueLancadoOuJaExistente = false;
 
   try {
     console.log(
@@ -131,45 +137,11 @@ export async function lancarEstoquePedidoSeguro(
 
     console.log(`✅ Estoque lançado com sucesso (Pedido ${pedidoNumero})`);
     
-    await executarNaFilaBling(() => safeRequest(() =>    axios.post(url, null, { headers: getHeaders() })));
-
-    // ✅ AQUI O ESTOQUE JÁ FOI LANÇADO NO BLING
-    // ✅ AGORA REGISTRAMOS NO BANCO (ETAPA 1)
-
-    await pool.query(`
-      INSERT INTO pedidos_expedicao (
-        pedido_numero,
-        pedido_numero_loja,
-        loja_id,
-        canal_venda,
-        deposito_lancado,
-        data_lancamento_estoque,
-        status_bling
-      )
-      VALUES ($1, $2, $3, $4, $5, NOW(), $6)
-      ON CONFLICT (pedido_numero)
-      DO UPDATE SET
-      pedido_numero_loja = EXCLUDED.pedido_numero_loja,
-      loja_id = EXCLUDED.loja_id,
-      canal_venda = EXCLUDED.canal_venda,
-      status_bling = EXCLUDED.status_bling,
-      atualizado_em = NOW()
-    `,
-    [
-      pedidoNumero,           // $1 -> pedido_numero
-      pedido.numeroLoja,      // $2 -> pedido_numero_loja
-      pedido.loja.id,         // $3 -> loja_id
-      canalVenda,             // $4 -> canal_venda (AMZ / ML)
-      idDeposito,             // $5 -> deposito_lancado (CRÍTICO)
-      pedido.situacao.id      // $6 -> status atual
-    ]
-  );
-
-  console.log(`🗄️ Pedido ${pedidoNumero} registrado no banco (Etapa 1)`);
-
-  } catch (err) {
+     } catch (err) {
     const status = err.response?.status;
     const fields = err.response?.data?.error?.fields || [];
+
+     
 
     /* ---------------------------
        CASO 1 – Timeout do Bling
@@ -194,6 +166,7 @@ export async function lancarEstoquePedidoSeguro(
         `ℹ️ Estoque do pedido ${pedidoNumero} ` +
         `já estava lançado — seguindo fluxo normalmente`
       );
+       estoqueLancadoOuJaExistente = true;
       return;
     }
 
@@ -201,6 +174,46 @@ export async function lancarEstoquePedidoSeguro(
        CASO 3 – Erro real
        --------------------------- */
     throw err;
+  }
+}
+
+
+  /* ======================================================
+     ✅ UPSERT ETAPA 1 — SEMPRE EXECUTA SE DEPÓSITO EXISTE
+     ====================================================== */
+
+  if (estoqueLancadoOuJaExistente) {
+    await pool.query(
+      `
+      INSERT INTO pedidos_expedicao (
+        pedido_numero,
+        pedido_numero_loja,
+        loja_id,
+        canal_venda,
+        deposito_lancado,
+        data_lancamento_estoque,
+        status_bling
+      )
+      VALUES ($1, $2, $3, $4, $5, NOW(), $6)
+      ON CONFLICT (pedido_numero)
+      DO UPDATE SET
+        pedido_numero_loja = EXCLUDED.pedido_numero_loja,
+        loja_id = EXCLUDED.loja_id,
+        canal_venda = EXCLUDED.canal_venda,
+        status_bling = EXCLUDED.status_bling,
+        atualizado_em = NOW()
+      `,
+      [
+        pedido.numero,
+        pedido.numeroLoja,
+        pedido.loja.id,
+        canalVenda,
+        idDeposito,
+        pedido.situacao.id
+      ]
+    );
+
+    console.log(`🗄️ Pedido ${pedidoNumero} registrado no banco (Etapa 1)`);
   }
 }
 
