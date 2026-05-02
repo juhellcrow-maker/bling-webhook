@@ -8,6 +8,7 @@
 */
 import { pool } from "../db/db.js";
 
+/* ----- Insere registro no BD tabela Pedidos_Espedicao ----- */
 export async function registrarLancamentoEstoque({
   pedido,
   depositoId,
@@ -63,3 +64,18 @@ export async function registrarLancamentoEstoque({
     ]
   );
 }
+
+/* ----- Exclui registro no BD tabela Pedidos_Espedicao ----- */
+
+export async function removerPedidoExpedicao(pedidoNumero) {
+  const { rowCount } = await pool.query(
+    `
+    DELETE FROM pedidos_expedicao
+    WHERE pedido_numero = $1
+    `,
+    [pedidoNumero]
+  );
+
+  return rowCount > 0;
+}
+
