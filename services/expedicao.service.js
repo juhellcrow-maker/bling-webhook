@@ -79,3 +79,43 @@ export async function removerPedidoExpedicao(pedidoNumero) {
   return rowCount > 0;
 }
 
+/* ----- Atualiza registro no BD Quando Status Muda para 9 - Atendido tabela Pedidos_Espedicao ----- */
+
+export async function atualizarPedidoComNotaFiscal(pedido) {
+  const nf = pedido.notaFiscal;
+
+  if (!nf) {
+    console.warn(`⚠️ Pedido ${pedido.numero} no status 9 mas sem NF vinculada`);
+    return;
+  }
+
+  const { rowCount } = await pool.query(
+    `
+    UPDATE pedidos_expedicao
+    SET
+      status_bling = $1,
+      nota_fiscal_id = $2,
+      nota_fiscal_numero = $3,
+      nota_fiscal_serie = $4,
+      data_atendido = NOW(),
+      atualizado_em = NOW()
+    WHERE pedido_numero = $5
+    `,
+    [
+      9,
+      nf.id,
+      nf.numero,
+      nf.serie,
+      pedido.numero
+    ]
+  );
+
+  if (rowCount > 0) {
+    console.log(`📄 NF registrada para o pedido ${pedido.numero}`);
+  } else {
+    console.log(
+      `ℹ️ Pedido ${pedido.numero} chegou ao status 9, mas não estava na expedição`
+    );
+  }
+}
+
