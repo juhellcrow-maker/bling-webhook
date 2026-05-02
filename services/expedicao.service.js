@@ -233,3 +233,35 @@ function extrairCodigoEtiquetaDoZPL(zpl) {
 
   return match ? match[1] : null;
 }
+
+/* ----- Buscar Etiqueta se Existir Cod Rastreio ----- */
+async function tentarBuscarEtiquetaZPLSeExistir(pedido, canalVenda) {
+  // 1️⃣ Só tenta se existir rastreio
+  const temRastreio = pedido.transporte?.volumes?.some(
+    v => v.codigoRastreamento
+  );
+
+  if (!temRastreio) {
+    return;
+  }
+
+  // 2️⃣ Verifica se já temos ZPL salvo
+  const { rows } = await pool.query(
+    `
+    SELECT etiqueta_zpl
+    FROM pedidos_expedicao
+    WHERE pedido_numero = $1
+    `,
+    [pedido.numero]
+  );
+
+  if (!rows.length) return;          // ainda não está na tabela
+  if (rows[0].etiqueta_zpl) return;  // já foi salvo
+
+  // 3️⃣ Agora sim chama a função certa
+  await buscarEtiquetaZPL(
+    pedido.id,
+    pedido.numero,
+    canalVenda
+  );
+}
