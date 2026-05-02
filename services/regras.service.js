@@ -164,6 +164,7 @@ export async function processarPedidoPorId(idPedido) {
 
   // ✅ AQUI ENTRA A ATUALIZAÇÃO DE RASTREIO (SEM RETURN!)
   await atualizarCodigoRastreio(pedido);
+  await tentarBuscarEtiquetaZPLSeExistir(pedido, canalVenda);
   
   /* ---------------------------
      Processa Pedido Cancelado
