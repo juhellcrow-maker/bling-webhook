@@ -182,7 +182,7 @@ if (pedido.situacao.id === 12) {
 if (pedido.situacao.id === 9) {
   await atualizarPedidoComNotaFiscal(pedido);
   return;
-
+}
 /* ---------------------------
      ETAPA 1 – CONFIRMAÇÃO
        // Funciona para status 462097 (ex: confirmação ML)
