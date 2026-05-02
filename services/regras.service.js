@@ -161,20 +161,7 @@ export async function processarPedidoPorId(idPedido) {
 
   const pedido = resp.data.data;
   const canalVenda = BuscarCanalVenda(pedido.loja.id);
-
   /* ---------------------------
-     ETAPA 1 – CONFIRMAÇÃO
-       // Funciona para status 462097 (ex: confirmação ML)
-  await registrarPedidoConfirmacao(pedido);
---------------------------- */
-  /* ---------------------------
-     ETAPA 2 – MOTOR DE REGRAS
-     --------------------------- */
-  const regra = encontrarRegraUnificada(pedido);
-
-  if (!regra) return;
-
-/* ---------------------------
      Processa Pedido Cancelado
      --------------------------- */
 if (pedido.situacao.id === 12) {
@@ -188,7 +175,17 @@ if (pedido.situacao.id === 12) {
 
   return;
 }
+/* ---------------------------
+     ETAPA 1 – CONFIRMAÇÃO
+       // Funciona para status 462097 (ex: confirmação ML)
+  await registrarPedidoConfirmacao(pedido);
+--------------------------- */
+  /* ---------------------------
+     ETAPA 2 – MOTOR DE REGRAS
+     --------------------------- */
+  const regra = encontrarRegraUnificada(pedido);
 
+  if (!regra) return;
 
   /* ---------------------------
      REGRA SIMPLES
