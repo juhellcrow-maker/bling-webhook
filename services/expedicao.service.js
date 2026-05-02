@@ -222,11 +222,12 @@ export async function buscarEtiquetaZPL(idPedido, pedidoNumero, canalVenda) {
     }
 
     const zpl = zplEntry.getData().toString("utf8");
-
-    if (!zpl.trim().startsWith("^XA")) {
+    const ehZPL = zpl.includes("^XA") && zpl.includes("^XZ");
+    
+    if (!ehZPL) {
       console.warn(`⚠️ Conteúdo extraído não parece ZPL (Pedido ${pedidoNumero})`);
       return;
-    }
+      }
 
     await pool.query(
       `
