@@ -16,7 +16,7 @@ import {executarNaFilaBling, safeRequest, getHeaders} from "./bling.service.js";
 import {pedidoTemSaldoCompletoNoDeposito, lancarEstoqueUmaVez} from "./estoque.service.js";
 import { registrarPedidoConfirmacao } from "./confirmacao.service.js";
 import { BuscarCanalVenda } from "../config/canaisVenda.js";
-import { registrarLancamentoEstoque, removerPedidoExpedicao, atualizarPedidoComNotaFiscal } from "./expedicao.service.js";
+import { registrarLancamentoEstoque, removerPedidoExpedicao, atualizarPedidoComNotaFiscal, atualizarCodigoRastreio } from "./expedicao.service.js";
 
 
 const MAPA_DEPOSITO_POR_STATUS = {
@@ -161,6 +161,10 @@ export async function processarPedidoPorId(idPedido) {
 
   const pedido = resp.data.data;
   const canalVenda = BuscarCanalVenda(pedido.loja.id);
+
+  // ✅ AQUI ENTRA A ATUALIZAÇÃO DE RASTREIO (SEM RETURN!)
+  await atualizarCodigoRastreio(pedido);
+  
   /* ---------------------------
      Processa Pedido Cancelado
      --------------------------- */
