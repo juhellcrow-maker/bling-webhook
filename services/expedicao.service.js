@@ -240,6 +240,28 @@ export async function buscarEtiquetaZPL(idPedido, pedidoNumero, canalVenda) {
 
     console.log(`🖨️ ZPL REAL salvo no banco (Pedido ${pedidoNumero})`);
 
+    // ✅ Se for Mercado Livre, corrige o código de rastreio
+if (CANAIS_ML.includes(canalVenda)) {
+  const codigoEtiqueta = extrairCodigoEtiquetaDoZPL(zpl);
+
+  if (codigoEtiqueta) {
+    await pool.query(
+      `
+      UPDATE pedidos_expedicao
+      SET
+        codigo_rastreamento = $1,
+        atualizado_em = NOW()
+      WHERE pedido_numero = $2
+      `,
+      [codigoEtiqueta, pedidoNumero]
+    );
+
+    console.log(
+      `📦 Código de rastreio ML corrigido via ZPL: ${codigoEtiqueta} (Pedido ${pedidoNumero})`
+    );
+  }
+}
+
   } catch (err) {
     if (err.response?.status === 403) {
       console.warn(`ℹ️ Bling retornou 403 – etiqueta ainda não liberada`);
