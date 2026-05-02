@@ -6,7 +6,9 @@
  * 
  * 👉 ESTE ARQUIVO CONECTA AO BANCO DE DADOS NA TABELA PEDIDOS EXPEDICAO
 */
+import axios from "axios";
 import { pool } from "../db/db.js";
+import { executarNaFilaBling, safeRequest, getHeaders } from "./bling.service.js";
 
 /* ----- Insere registro no BD tabela Pedidos_Espedicao ----- */
 export async function registrarLancamentoEstoque({
@@ -81,11 +83,33 @@ export async function removerPedidoExpedicao(pedidoNumero) {
 
 /* ----- Atualiza registro no BD Quando Status Muda para 9 - Atendido tabela Pedidos_Espedicao ----- */
 
+
 export async function atualizarPedidoComNotaFiscal(pedido) {
-  const nf = pedido.notaFiscal;
+  const nfRef = pedido.notaFiscal;
+
+  if (!nfRef?.id) {
+    console.warn(
+      `⚠️ Pedido ${pedido.numero} no status 9, mas sem referência de NF`
+    );
+    return;
+  }
+
+  // ✅ BUSCA COMPLETA DA NF NO BLING
+  const respNF = await executarNaFilaBling(() =>
+    safeRequest(() =>
+      axios.get(
+        `https://api.bling.com.br/Api/v3/nfe/${nfRef.id}`,
+        { headers: getHeaders() }
+      )
+    )
+  );
+
+  const nf = respNF.data?.data;
 
   if (!nf) {
-    console.warn(`⚠️ Pedido ${pedido.numero} no status 9 mas sem NF vinculada`);
+    console.warn(
+      `⚠️ NF ${nfRef.id} não retornou dados completos`
+    );
     return;
   }
 
@@ -93,16 +117,15 @@ export async function atualizarPedidoComNotaFiscal(pedido) {
     `
     UPDATE pedidos_expedicao
     SET
-      status_bling = $1,
-      nota_fiscal_id = $2,
-      nota_fiscal_numero = $3,
-      nota_fiscal_serie = $4,
+      status_bling = 9,
+      nota_fiscal_id = $1,
+      nota_fiscal_numero = $2,
+      nota_fiscal_serie = $3,
       data_atendido = NOW(),
       atualizado_em = NOW()
-    WHERE pedido_numero = $5
+    WHERE pedido_numero = $4
     `,
     [
-      9,
       nf.id,
       nf.numero,
       nf.serie,
@@ -111,11 +134,14 @@ export async function atualizarPedidoComNotaFiscal(pedido) {
   );
 
   if (rowCount > 0) {
-    console.log(`📄 NF registrada para o pedido ${pedido.numero}`);
+    console.log(
+      `📄 NF ${nf.numero}/${nf.serie} registrada no pedido ${pedido.numero}`
+    );
   } else {
     console.log(
-      `ℹ️ Pedido ${pedido.numero} chegou ao status 9, mas não estava na expedição`
+      `ℹ️ Pedido ${pedido.numero} (status 9) não estava na tabela de expedição`
     );
   }
 }
+
 
