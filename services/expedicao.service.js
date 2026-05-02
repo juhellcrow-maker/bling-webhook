@@ -181,7 +181,7 @@ export async function atualizarCodigoRastreio(pedido) {
 }
 
 /* ----- BUSCA ETIQUETA ZPL BLING ----- */
-async function buscarEtiquetaZPL(idPedido, pedidoNumero, canalVenda) {
+export async function buscarEtiquetaZPL(idPedido, pedidoNumero, canalVenda) {
   const resp = await executarNaFilaBling(() =>
     axios.get(
       "https://api.bling.com.br/Api/v3/logisticas/etiquetas",
@@ -200,15 +200,8 @@ async function buscarEtiquetaZPL(idPedido, pedidoNumero, canalVenda) {
 
   let codigoEtiqueta = null;
 
-  // ✅ só extrai código da etiqueta para ML
   if (CANAIS_ML.includes(canalVenda)) {
     codigoEtiqueta = extrairCodigoEtiquetaDoZPL(zpl);
-
-    if (codigoEtiqueta) {
-      console.log(
-        `📦 Código da etiqueta extraído do ZPL: ${codigoEtiqueta} (Pedido ${pedidoNumero})`
-      );
-    }
   }
 
   await pool.query(
@@ -224,7 +217,6 @@ async function buscarEtiquetaZPL(idPedido, pedidoNumero, canalVenda) {
     [zpl, codigoEtiqueta, pedidoNumero]
   );
 }
-
 /* ----- EXTRAI COD RASTREIO ZPL ----- */
 
 function extrairCodigoEtiquetaDoZPL(zpl) {
@@ -236,16 +228,14 @@ function extrairCodigoEtiquetaDoZPL(zpl) {
 
 /* ----- Buscar Etiqueta se Existir Cod Rastreio ----- */
 async function tentarBuscarEtiquetaZPLSeExistir(pedido, canalVenda) {
-  // 1️⃣ Só tenta se existir rastreio
+  // 1️⃣ só tenta se existir rastreio
   const temRastreio = pedido.transporte?.volumes?.some(
     v => v.codigoRastreamento
   );
 
-  if (!temRastreio) {
-    return;
-  }
+  if (!temRastreio) return;
 
-  // 2️⃣ Verifica se já temos ZPL salvo
+  // 2️⃣ garante que o pedido exista na tabela
   const { rows } = await pool.query(
     `
     SELECT etiqueta_zpl
@@ -255,10 +245,22 @@ async function tentarBuscarEtiquetaZPLSeExistir(pedido, canalVenda) {
     [pedido.numero]
   );
 
-  if (!rows.length) return;          // ainda não está na tabela
-  if (rows[0].etiqueta_zpl) return;  // já foi salvo
+  if (!rows.length) {
+    // cria registro mínimo
+    await pool.query(
+      `
+      INSERT INTO pedidos_expedicao (pedido_numero, status_bling, criado_em)
+      VALUES ($1, $2, NOW())
+      ON CONFLICT (pedido_numero) DO NOTHING
+      `,
+      [pedido.numero, pedido.situacao.id]
+    );
+  } else {
+    // já existe e já tem ZPL → não faz nada
+    if (rows[0].etiqueta_zpl) return;
+  }
 
-  // 3️⃣ Agora sim chama a função certa
+  // 3️⃣ agora sim busca e grava o ZPL
   await buscarEtiquetaZPL(
     pedido.id,
     pedido.numero,
