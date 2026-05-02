@@ -127,7 +127,8 @@ async function alterarStatusPedido(pedido, statusDestino) {
     console.log(`✅ Status alterado HTTP ${r.status}`);
   } catch (err) {
     const fields = err.response?.data?.error?.fields || [];
-    const mesmaSituacao = (statusHttp === 400 && fields.some(f => f.code === 50));
+    const mesmaSituacao = err.response?.status === 400 && fields.some(f => f.code === 50);
+
 
     if (mesmaSituacao) {
       console.log(`ℹ️ Status do pedido ${pedido.numero} já estava em ${statusDestino}`);
