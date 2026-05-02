@@ -184,8 +184,8 @@ export async function atualizarCodigoRastreio(pedido) {
 /* ----- BUSCA ETIQUETA ZPL BLING ----- */
 export async function buscarEtiquetaZPL(idPedido, pedidoNumero) {
   try {
-    // 1️⃣ BUSCA LINK DA ETIQUETA
-    const resp = await executarNaFilaBling(() =>
+    // 1️⃣ BUSCA OS METADADOS DA ETIQUETA (JSON COM LINK)
+    const metaResp = await executarNaFilaBling(() =>
       axios.get(
         "https://api.bling.com.br/Api/v3/logisticas/etiquetas",
         {
@@ -198,19 +198,18 @@ export async function buscarEtiquetaZPL(idPedido, pedidoNumero) {
       )
     );
 
-    const item = resp.data?.data?.[0];
-
+    const item = metaResp.data?.data?.[0];
     if (!item?.link) {
       console.warn(`ℹ️ Etiqueta ainda não disponível (Pedido ${pedidoNumero})`);
       return;
     }
 
-    // 2️⃣ BAIXA O ZIP
+    // 2️⃣ BAIXA O ZIP DA ETIQUETA
     const zipResp = await axios.get(item.link, {
       responseType: "arraybuffer"
     });
 
-    // 3️⃣ DESCOMPACTA ZIP
+    // 3️⃣ DESCOMPACTA O ZIP
     const zip = new AdmZip(zipResp.data);
     const entries = zip.getEntries();
 
@@ -226,7 +225,13 @@ export async function buscarEtiquetaZPL(idPedido, pedidoNumero) {
 
     const zpl = zplEntry.getData().toString("utf8");
 
-    // 4️⃣ SALVA APENAS O CONTEÚDO DO ZPL NO BANCO
+    // 4️⃣ PROTEÇÃO FINAL: valida se É ZPL DE VERDADE
+    if (!zpl.trim().startsWith("^XA")) {
+      console.warn(`⚠️ Conteúdo extraído não parece ZPL (Pedido ${pedidoNumero})`);
+      return;
+    }
+
+    // 5️⃣ SALVA SOMENTE O ZPL REAL
     await pool.query(
       `
       UPDATE pedidos_expedicao
@@ -234,24 +239,21 @@ export async function buscarEtiquetaZPL(idPedido, pedidoNumero) {
         etiqueta_zpl = $1,
         atualizado_em = NOW()
       WHERE pedido_numero = $2
-        AND etiqueta_zpl IS NULL
       `,
       [zpl, pedidoNumero]
     );
 
-    console.log(`🖨️ ZPL salvo com sucesso no banco (Pedido ${pedidoNumero})`);
+    console.log(`🖨️ ZPL REAL salvo no banco (Pedido ${pedidoNumero})`);
 
   } catch (err) {
     if (err.response?.status === 403) {
-      console.warn(
-        `ℹ️ Bling retornou 403 para etiqueta – ainda não liberada (Pedido ${pedidoNumero})`
-      );
+      console.warn(`ℹ️ Bling retornou 403 – etiqueta ainda não liberada`);
       return;
     }
-
     throw err;
   }
 }
+
 /* ----- EXTRAI COD RASTREIO ZPL ----- */
 
 function extrairCodigoEtiquetaDoZPL(zpl) {
