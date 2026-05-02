@@ -16,7 +16,7 @@ import {executarNaFilaBling, safeRequest, getHeaders} from "./bling.service.js";
 import {pedidoTemSaldoCompletoNoDeposito, lancarEstoqueUmaVez} from "./estoque.service.js";
 import { registrarPedidoConfirmacao } from "./confirmacao.service.js";
 import { BuscarCanalVenda } from "../config/canaisVenda.js";
-import { registrarLancamentoEstoque, removerPedidoExpedicao, atualizarPedidoComNotaFiscal, atualizarCodigoRastreio } from "./expedicao.service.js";
+import { registrarLancamentoEstoque, removerPedidoExpedicao, atualizarPedidoComNotaFiscal, atualizarCodigoRastreio, buscarEtiquetaZPL } from "./expedicao.service.js";
 
 
 const MAPA_DEPOSITO_POR_STATUS = {
@@ -164,7 +164,7 @@ export async function processarPedidoPorId(idPedido) {
 
   // ✅ AQUI ENTRA A ATUALIZAÇÃO DE RASTREIO (SEM RETURN!)
   await atualizarCodigoRastreio(pedido);
-  await tentarBuscarEtiquetaZPLSeExistir(pedido, canalVenda);
+  await buscarEtiquetaZPL(pedido.id, pedido.numero, canalVenda);
   
   /* ---------------------------
      Processa Pedido Cancelado
