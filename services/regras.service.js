@@ -16,7 +16,7 @@ import {executarNaFilaBling, safeRequest, getHeaders} from "./bling.service.js";
 import {pedidoTemSaldoCompletoNoDeposito, lancarEstoqueUmaVez} from "./estoque.service.js";
 import { registrarPedidoConfirmacao } from "./confirmacao.service.js";
 import { BuscarCanalVenda } from "../config/canaisVenda.js";
-import { registrarLancamentoEstoque } from "./expedicao.service.js";
+import { registrarLancamentoEstoque, removerPedidoExpedicao } from "./expedicao.service.js";
 
 
 const MAPA_DEPOSITO_POR_STATUS = {
@@ -173,6 +173,22 @@ export async function processarPedidoPorId(idPedido) {
   const regra = encontrarRegraUnificada(pedido);
 
   if (!regra) return;
+
+/* ---------------------------
+     Processa Pedido Cancelado
+     --------------------------- */
+if (pedido.situacao.id === 12) {
+  const removido = await removerPedidoExpedicao(pedido.numero);
+
+  if (removido) {
+    console.log(`🗑️ Pedido ${pedido.numero} cancelado – registro removido da expedição`);
+  } else {
+    console.log(`ℹ️ Pedido ${pedido.numero} cancelado – não havia registro de expedição`);
+  }
+
+  return;
+}
+
 
   /* ---------------------------
      REGRA SIMPLES
