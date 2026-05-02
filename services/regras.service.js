@@ -16,7 +16,7 @@ import {executarNaFilaBling, safeRequest, getHeaders} from "./bling.service.js";
 import {pedidoTemSaldoCompletoNoDeposito, lancarEstoqueUmaVez} from "./estoque.service.js";
 import { registrarPedidoConfirmacao } from "./confirmacao.service.js";
 import { BuscarCanalVenda } from "../config/canaisVenda.js";
-import { registrarLancamentoEstoque, removerPedidoExpedicao } from "./expedicao.service.js";
+import { registrarLancamentoEstoque, removerPedidoExpedicao, atualizarPedidoComNotaFiscal } from "./expedicao.service.js";
 
 
 const MAPA_DEPOSITO_POR_STATUS = {
@@ -175,6 +175,14 @@ if (pedido.situacao.id === 12) {
 
   return;
 }
+  
+/* ---------------------------
+   PROCESSA PEDIDO COM NF (STATUS 9)
+   --------------------------- */
+if (pedido.situacao.id === 9) {
+  await atualizarPedidoComNotaFiscal(pedido);
+  return;
+
 /* ---------------------------
      ETAPA 1 – CONFIRMAÇÃO
        // Funciona para status 462097 (ex: confirmação ML)
