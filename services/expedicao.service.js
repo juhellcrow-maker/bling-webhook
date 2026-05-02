@@ -182,9 +182,8 @@ export async function atualizarCodigoRastreio(pedido) {
 }
 
 /* ----- BUSCA ETIQUETA ZPL BLING ----- */
-export async function buscarEtiquetaZPL(idPedido, pedidoNumero) {
+export async function buscarEtiquetaZPL(idPedido, pedidoNumero, canalVenda) {
   try {
-    // 1️⃣ BUSCA OS METADADOS DA ETIQUETA (JSON COM LINK)
     const metaResp = await executarNaFilaBling(() =>
       axios.get(
         "https://api.bling.com.br/Api/v3/logisticas/etiquetas",
@@ -204,12 +203,10 @@ export async function buscarEtiquetaZPL(idPedido, pedidoNumero) {
       return;
     }
 
-    // 2️⃣ BAIXA O ZIP DA ETIQUETA
     const zipResp = await axios.get(item.link, {
       responseType: "arraybuffer"
     });
 
-    // 3️⃣ DESCOMPACTA O ZIP
     const zip = new AdmZip(zipResp.data);
     const entries = zip.getEntries();
 
@@ -225,13 +222,11 @@ export async function buscarEtiquetaZPL(idPedido, pedidoNumero) {
 
     const zpl = zplEntry.getData().toString("utf8");
 
-    // 4️⃣ PROTEÇÃO FINAL: valida se É ZPL DE VERDADE
     if (!zpl.trim().startsWith("^XA")) {
       console.warn(`⚠️ Conteúdo extraído não parece ZPL (Pedido ${pedidoNumero})`);
       return;
     }
 
-    // 5️⃣ SALVA SOMENTE O ZPL REAL
     await pool.query(
       `
       UPDATE pedidos_expedicao
@@ -242,11 +237,6 @@ export async function buscarEtiquetaZPL(idPedido, pedidoNumero) {
       `,
       [zpl, pedidoNumero]
     );
-
-    if (canalVenda === "Matriz ML" || canalVenda === "Filial ML") {
-      codigoFinal = extrairCodigoEtiquetaDoZPL(zpl);
-      } else {
-      codigoFinal = codigoRastreamentoOriginal;}
 
     console.log(`🖨️ ZPL REAL salvo no banco (Pedido ${pedidoNumero})`);
 
