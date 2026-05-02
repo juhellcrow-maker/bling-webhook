@@ -210,11 +210,12 @@ export async function buscarEtiquetaZPL(idPedido, pedidoNumero, canalVenda) {
     const zip = new AdmZip(zipResp.data);
     const entries = zip.getEntries();
 
-    const zplEntry = entries.find(e =>
-      e.entryName.toLowerCase().endsWith(".zpl") ||
-      e.entryName.toLowerCase().endsWith(".txt")
-    );
+    const zplEntry = entries.find(e => {
+      const name = e.entryName.toLowerCase();
+      return name.endsWith(".zpl") || name.endsWith(".txt");
+      });
 
+    
     if (!zplEntry) {
       console.warn(`⚠️ ZPL não encontrado no ZIP (Pedido ${pedidoNumero})`);
       return;
