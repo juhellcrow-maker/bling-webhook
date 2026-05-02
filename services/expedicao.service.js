@@ -243,6 +243,11 @@ export async function buscarEtiquetaZPL(idPedido, pedidoNumero) {
       [zpl, pedidoNumero]
     );
 
+    if (canalVenda === "Matriz ML" || canalVenda === "Filial ML") {
+      codigoFinal = extrairCodigoEtiquetaDoZPL(zpl);
+      } else {
+      codigoFinal = codigoRastreamentoOriginal;}
+
     console.log(`🖨️ ZPL REAL salvo no banco (Pedido ${pedidoNumero})`);
 
   } catch (err) {
@@ -257,9 +262,8 @@ export async function buscarEtiquetaZPL(idPedido, pedidoNumero) {
 /* ----- EXTRAI COD RASTREIO ZPL ----- */
 
 function extrairCodigoEtiquetaDoZPL(zpl) {
-  // procura padrão: ^FD\>:NUMERO^FS
-  const match = zpl.match(/\^FD\\>:(\d+)\^FS/);
-
+  // Extrai somente números após ^FD>:
+  const match = zpl.match(/\^FD>:(\d+)\^FS/);
   return match ? match[1] : null;
 }
 
