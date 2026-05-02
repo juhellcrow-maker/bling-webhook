@@ -187,18 +187,21 @@ export async function buscarEtiquetaZPL(idPedido, pedidoNumero, canalVenda) {
       axios.get(
         "https://api.bling.com.br/Api/v3/logisticas/etiquetas",
         {
-          headers: {
-            ...getHeaders(),
-            Accept: "application/octet-stream"
-          },
+          headers: getHeaders(),
           params: {
             formato: "ZPL",
             idsVendas: [idPedido]
-          },
-          responseType: "text"
+          }
         }
       )
     );
+    
+    const item = resp.data?.data?.[0];
+    if (!item?.link) {
+      console.warn(`ℹ️ Etiqueta ainda não disponível (Pedido ${pedidoNumero})`);
+    return;
+}
+
 
     const zpl = resp.data;
 
