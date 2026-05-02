@@ -265,12 +265,27 @@ if (CANAIS_ML.includes(canalVenda)) {
 }
 
   } catch (err) {
-    if (err.response?.status === 403) {
-      console.warn(`ℹ️ Bling retornou 403 – etiqueta ainda não liberada`);
-      return;
-    }
-    throw err;
+  const status = err.response?.status;
+
+  // ✅ Etiqueta ainda não existe (Amazon, timing)
+  if (status === 404) {
+    console.warn(
+      `ℹ️ Etiqueta ainda não encontrada no Bling (Pedido ${pedidoNumero})`
+    );
+    return;
   }
+
+  // ✅ Etiqueta ainda não liberada / permissão
+  if (status === 403) {
+    console.warn(
+      `ℹ️ Bling retornou 403 – etiqueta ainda não liberada (Pedido ${pedidoNumero})`
+    );
+    return;
+  }
+
+  // ❌ Qualquer outro erro é problema real
+  throw err;
+}
 }
 
 /* ----- EXTRAI COD RASTREIO ZPL ----- */
