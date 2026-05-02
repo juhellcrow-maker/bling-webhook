@@ -9,6 +9,8 @@
 import axios from "axios";
 import { pool } from "../db/db.js";
 import { executarNaFilaBling, safeRequest, getHeaders } from "./bling.service.js";
+const CANAIS_ML = ["Matriz ML", "Filial ML"];
+
 
 /* ----- Insere registro no BD tabela Pedidos_Espedicao ----- */
 export async function registrarLancamentoEstoque({
@@ -176,4 +178,58 @@ export async function atualizarCodigoRastreio(pedido) {
       `📦 Código de rastreio ${codigoRastreamento} registrado no pedido ${pedido.numero}`
     );
   }
+}
+
+/* ----- BUSCA ETIQUETA ZPL BLING ----- */
+async function buscarEtiquetaZPL(idPedido, pedidoNumero, canalVenda) {
+  const resp = await executarNaFilaBling(() =>
+    axios.get(
+      "https://api.bling.com.br/Api/v3/logisticas/etiquetas",
+      {
+        headers: getHeaders(),
+        params: {
+          formato: "ZPL",
+          idsVendas: [idPedido]
+        },
+        responseType: "text"
+      }
+    )
+  );
+
+  const zpl = resp.data;
+
+  let codigoEtiqueta = null;
+
+  // ✅ só extrai código da etiqueta para ML
+  if (CANAIS_ML.includes(canalVenda)) {
+    codigoEtiqueta = extrairCodigoEtiquetaDoZPL(zpl);
+
+    if (codigoEtiqueta) {
+      console.log(
+        `📦 Código da etiqueta extraído do ZPL: ${codigoEtiqueta} (Pedido ${pedidoNumero})`
+      );
+    }
+  }
+
+  await pool.query(
+    `
+    UPDATE pedidos_expedicao
+    SET
+      etiqueta_zpl = $1,
+      codigo_rastreamento_etiqueta = COALESCE($2, codigo_rastreamento_etiqueta),
+      atualizado_em = NOW()
+    WHERE pedido_numero = $3
+      AND etiqueta_zpl IS NULL
+    `,
+    [zpl, codigoEtiqueta, pedidoNumero]
+  );
+}
+
+/* ----- EXTRAI COD RASTREIO ZPL ----- */
+
+function extrairCodigoEtiquetaDoZPL(zpl) {
+  // procura padrão: ^FD\>:NUMERO^FS
+  const match = zpl.match(/\^FD\\>:(\d+)\^FS/);
+
+  return match ? match[1] : null;
 }
