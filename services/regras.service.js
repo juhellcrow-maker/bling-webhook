@@ -164,10 +164,9 @@ export async function processarPedidoPorId(idPedido) {
 
   /* ---------------------------
      ETAPA 1 – CONFIRMAÇÃO
-     --------------------------- */
-  // Funciona para status 462097 (ex: confirmação ML)
+       // Funciona para status 462097 (ex: confirmação ML)
   await registrarPedidoConfirmacao(pedido);
-
+--------------------------- */
   /* ---------------------------
      ETAPA 2 – MOTOR DE REGRAS
      --------------------------- */
