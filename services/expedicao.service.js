@@ -182,40 +182,50 @@ export async function atualizarCodigoRastreio(pedido) {
 
 /* ----- BUSCA ETIQUETA ZPL BLING ----- */
 export async function buscarEtiquetaZPL(idPedido, pedidoNumero, canalVenda) {
-  const resp = await executarNaFilaBling(() =>
-    axios.get(
-      "https://api.bling.com.br/Api/v3/logisticas/etiquetas",
-      {
-        headers: getHeaders(),
-        params: {
-          formato: "ZPL",
-          idsVendas: [idPedido]
-        },
-        responseType: "text"
-      }
-    )
-  );
+  try {
+    const resp = await executarNaFilaBling(() =>
+      axios.get(
+        "https://api.bling.com.br/Api/v3/logisticas/etiquetas",
+        {
+          headers: {
+            ...getHeaders(),
+            Accept: "application/octet-stream"
+          },
+          params: {
+            formato: "ZPL",
+            idsVendas: [idPedido]
+          },
+          responseType: "text"
+        }
+      )
+    );
 
-  const zpl = resp.data;
+    const zpl = resp.data;
 
-  let codigoEtiqueta = null;
+    await pool.query(
+      `
+      UPDATE pedidos_expedicao
+      SET
+        etiqueta_zpl = $1,
+        atualizado_em = NOW()
+      WHERE pedido_numero = $2
+        AND etiqueta_zpl IS NULL
+      `,
+      [zpl, pedidoNumero]
+    );
 
-  if (CANAIS_ML.includes(canalVenda)) {
-    codigoEtiqueta = extrairCodigoEtiquetaDoZPL(zpl);
+    console.log(`🖨️ ZPL salvo no banco para o pedido ${pedidoNumero}`);
+
+  } catch (err) {
+    if (err.response?.status === 403) {
+      console.warn(
+        `ℹ️ Etiqueta ainda indisponível no Bling (Pedido ${pedidoNumero})`
+      );
+      return;
+    }
+
+    throw err;
   }
-
-  await pool.query(
-    `
-    UPDATE pedidos_expedicao
-    SET
-      etiqueta_zpl = $1,
-      codigo_rastreamento_etiqueta = COALESCE($2, codigo_rastreamento_etiqueta),
-      atualizado_em = NOW()
-    WHERE pedido_numero = $3
-      AND etiqueta_zpl IS NULL
-    `,
-    [zpl, codigoEtiqueta, pedidoNumero]
-  );
 }
 /* ----- EXTRAI COD RASTREIO ZPL ----- */
 
@@ -227,7 +237,7 @@ function extrairCodigoEtiquetaDoZPL(zpl) {
 }
 
 /* ----- Buscar Etiqueta se Existir Cod Rastreio ----- */
-async function tentarBuscarEtiquetaZPLSeExistir(pedido, canalVenda) {
+export async function tentarBuscarEtiquetaZPLSeExistir(pedido, canalVenda) {
   // 1️⃣ só tenta se existir rastreio
   const temRastreio = pedido.transporte?.volumes?.some(
     v => v.codigoRastreamento
