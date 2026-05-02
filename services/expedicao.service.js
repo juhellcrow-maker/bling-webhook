@@ -7,6 +7,7 @@
  * 👉 ESTE ARQUIVO CONECTA AO BANCO DE DADOS NA TABELA PEDIDOS EXPEDICAO
 */
 import axios from "axios";
+import AdmZip from "adm-zip";
 import { pool } from "../db/db.js";
 import { executarNaFilaBling, safeRequest, getHeaders } from "./bling.service.js";
 const CANAIS_ML = ["Matriz ML", "Filial ML"];
@@ -181,8 +182,9 @@ export async function atualizarCodigoRastreio(pedido) {
 }
 
 /* ----- BUSCA ETIQUETA ZPL BLING ----- */
-export async function buscarEtiquetaZPL(idPedido, pedidoNumero, canalVenda) {
+export async function buscarEtiquetaZPL(idPedido, pedidoNumero) {
   try {
+    // 1️⃣ BUSCA LINK DA ETIQUETA
     const resp = await executarNaFilaBling(() =>
       axios.get(
         "https://api.bling.com.br/Api/v3/logisticas/etiquetas",
@@ -195,16 +197,36 @@ export async function buscarEtiquetaZPL(idPedido, pedidoNumero, canalVenda) {
         }
       )
     );
-    
+
     const item = resp.data?.data?.[0];
+
     if (!item?.link) {
       console.warn(`ℹ️ Etiqueta ainda não disponível (Pedido ${pedidoNumero})`);
-    return;
-}
+      return;
+    }
 
+    // 2️⃣ BAIXA O ZIP
+    const zipResp = await axios.get(item.link, {
+      responseType: "arraybuffer"
+    });
 
-    const zpl = resp.data;
+    // 3️⃣ DESCOMPACTA ZIP
+    const zip = new AdmZip(zipResp.data);
+    const entries = zip.getEntries();
 
+    const zplEntry = entries.find(e =>
+      e.entryName.toLowerCase().endsWith(".zpl") ||
+      e.entryName.toLowerCase().endsWith(".txt")
+    );
+
+    if (!zplEntry) {
+      console.warn(`⚠️ ZPL não encontrado no ZIP (Pedido ${pedidoNumero})`);
+      return;
+    }
+
+    const zpl = zplEntry.getData().toString("utf8");
+
+    // 4️⃣ SALVA APENAS O CONTEÚDO DO ZPL NO BANCO
     await pool.query(
       `
       UPDATE pedidos_expedicao
@@ -217,12 +239,12 @@ export async function buscarEtiquetaZPL(idPedido, pedidoNumero, canalVenda) {
       [zpl, pedidoNumero]
     );
 
-    console.log(`🖨️ ZPL salvo no banco para o pedido ${pedidoNumero}`);
+    console.log(`🖨️ ZPL salvo com sucesso no banco (Pedido ${pedidoNumero})`);
 
   } catch (err) {
     if (err.response?.status === 403) {
       console.warn(
-        `ℹ️ Etiqueta ainda indisponível no Bling (Pedido ${pedidoNumero})`
+        `ℹ️ Bling retornou 403 para etiqueta – ainda não liberada (Pedido ${pedidoNumero})`
       );
       return;
     }
@@ -274,9 +296,5 @@ export async function tentarBuscarEtiquetaZPLSeExistir(pedido, canalVenda) {
   }
 
   // 3️⃣ agora sim busca e grava o ZPL
-  await buscarEtiquetaZPL(
-    pedido.id,
-    pedido.numero,
-    canalVenda
-  );
+  await buscarEtiquetaZPL(pedido.id, pedido.numero, canalVenda);
 }
