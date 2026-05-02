@@ -144,4 +144,36 @@ export async function atualizarPedidoComNotaFiscal(pedido) {
   }
 }
 
+/* ----- Atualiza Codigo Rastreio Banco de Dados ----- */
+export async function atualizarCodigoRastreio(pedido) {
+  const volumes = pedido.transporte?.volumes || [];
 
+  const codigos = volumes
+    .map(v => v.codigoRastreamento)
+    .filter(Boolean);
+
+  if (!codigos.length) {
+    return; // Ainda não há etiqueta
+  }
+
+  // Usa o primeiro código (ou adapte se usar múltiplos volumes)
+  const codigoRastreamento = codigos[0];
+
+  const { rowCount } = await pool.query(
+    `
+    UPDATE pedidos_expedicao
+    SET
+      codigo_rastreamento = $1,
+      atualizado_em = NOW()
+    WHERE pedido_numero = $2
+      AND codigo_rastreamento IS NULL
+    `,
+    [codigoRastreamento, pedido.numero]
+  );
+
+  if (rowCount > 0) {
+    console.log(
+      `📦 Código de rastreio ${codigoRastreamento} registrado no pedido ${pedido.numero}`
+    );
+  }
+}
