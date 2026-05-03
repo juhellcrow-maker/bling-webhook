@@ -526,4 +526,72 @@ router.get("/debug-expedicao/periodo", async (req, res) => {
   }
 });
 
+/* ======================================================
+   DEBUG – PEDIDO POR ID DO BLING
+   ====================================================== */
+
+/**
+ * DEBUG IMEDIATO PELO ID RECEBIDO NO WEBHOOK
+ * Ideal para investigar eventos "fantasma"
+ *
+ * GET /debug-pedido-id/:id
+ */
+router.get("/debug-pedido-id/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const resp = await executarNaFilaBling(() =>
+      safeRequest(() =>
+        axios.get(
+          `https://api.bling.com.br/Api/v3/pedidos/vendas/${id}`,
+          { headers: getHeaders() }
+        )
+      )
+    );
+
+    const pedido = resp.data.data;
+
+    if (!pedido) {
+      return res.status(404).json({
+        erro: "Pedido não encontrado no Bling",
+        id
+      });
+    }
+
+    // 🔎 RESUMO OPERACIONAL (ENXUTO)
+    const debug = {
+      pedido: {
+        id: pedido.id,
+        numero: pedido.numero,
+        numeroLoja: pedido.numeroLoja,
+        status: pedido.situacao?.id,
+        statusDescricao: pedido.situacao?.valor
+      },
+      loja: {
+        id: pedido.loja?.id,
+        descricao: pedido.loja?.descricao || null
+      },
+      possuiNF: !!pedido.notaFiscal,
+      dataPedido: pedido.data,
+      dataSaida: pedido.dataSaida || null
+    };
+
+    // ✅ LOG IMEDIATO NO CONSOLE
+    console.log("🧾 DEBUG PEDIDO POR ID");
+    console.log(`📦 Pedido: ${debug.pedido.numero}`);
+    console.log(`🆔 ID Bling: ${id}`);
+    console.log(`🚦 Status: ${debug.pedido.statusDescricao}`);
+
+    res.json(debug);
+
+  } catch (e) {
+    console.error("❌ Erro no debug por ID:", e.message);
+    res.status(500).json({
+      erro: "Erro ao buscar pedido pelo ID",
+      id,
+      detalhe: e.response?.data || null
+    });
+  }
+});
+
 export default router;
