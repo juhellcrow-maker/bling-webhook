@@ -171,7 +171,7 @@ router.get("/debug-pedido/:numero", async (req, res) => {
        ====================================================== */
     console.log("🧾 DEBUG PEDIDO");
     console.log(`📦 Pedido: ${debug.pedido.numero}`);
-    console.log(`🏬 Canal: ${debug.loja.canal}`);
+    console.log(`🏬 Canal: ${canalVenda}`);
     console.log(`🚦 Status: ${debug.status.descricao}`);
     console.log(`📦 Itens: ${debug.itens.length}`);
     console.log(`📄 Possui NF: ${!!debug.notaFiscal}`);
@@ -316,10 +316,10 @@ router.get("/debug-pedido-expedicao/:numero", async (req, res) => {
        2️⃣ CANAL DE VENDA (REGRA INTERNA)
        ====================================================== */
     const MAPA_CANAL = {
-      205415213: "AMZ Filial",
-      204782103: "AMZ Matriz",
-      204964661: "ML Filial",
-      204560827: "ML Matriz"
+      205415213: "Filial AMZ",
+      204782103: "Matriz AMZ",
+      204964661: "Filial ML",
+      204560827: "Matriz ML"
     };
 
     const canalVenda = MAPA_CANAL[pedido.loja.id] || "Desconhecido";
