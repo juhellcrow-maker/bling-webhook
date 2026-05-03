@@ -13,7 +13,7 @@ export default [
    * ========================================================= */
 
   {
-    nome: "ML MATRIZ - PASSALACQUA RIBEIRÃO",
+    nome: "MATRIZ ML - PASSALACQUA RIBEIRÃO",
     lojaId: 204560827,
     statusOrigem: 6,
     tipo: "SIMPLES",
@@ -22,7 +22,7 @@ export default [
   },
 
   {
-    nome: "ML MATRIZ - SERV-SEG RIO PRETO",
+    nome: "MATRIZ ML - SERV-SEG RIO PRETO",
     lojaId: 204560827,
     statusOrigem: 6,
     tipo: "SIMPLES",
@@ -31,7 +31,7 @@ export default [
   },
 
   {
-    nome: "ML MATRIZ - SERV-SEG CATANDUVA",
+    nome: "MATRIZ ML - SERV-SEG CATANDUVA",
     lojaId: 204560827,
     statusOrigem: 6,
     tipo: "SIMPLES",
@@ -45,7 +45,7 @@ export default [
    * ========================================================= */
 
   {
-    nome: "AMZ MATRIZ - decisão por estoque",
+    nome: "MATRIZ AMZ - decisão por estoque",
     lojaId: 204782103,
     statusOrigem: 6,
     tipo: "ESTOQUE",
@@ -71,7 +71,7 @@ export default [
    * ========================================================= */
 
   {
-    nome: "ML FILIAL - decisão por estoque",
+    nome: "FILIAL ML - decisão por estoque",
     lojaId: 204964661,
     statusOrigem: 6,
     tipo: "ESTOQUE",
@@ -103,7 +103,7 @@ export default [
    * ========================================================= */
 
   {
-    nome: "AMZ FILIAL - decisão por estoque",
+    nome: "FILIAL AMZ - decisão por estoque",
     lojaId: 205415213,
     statusOrigem: 6,
     tipo: "ESTOQUE",
@@ -128,7 +128,7 @@ export default [
    * ========================================================= */
 
   {
-    nome: "TikTok Matriz - decisão por estoque",
+    nome: "Matriz TikTok - decisão por estoque",
     lojaId: 205589391,
     statusOrigem: 6,
     tipo: "ESTOQUE",
