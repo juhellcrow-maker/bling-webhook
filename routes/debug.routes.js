@@ -29,7 +29,7 @@ const router = Router();
       204560827: "Matriz ML"
     };
 
-    const canalVenda = MAPA_CANAL[pedido.loja.id] || "Desconhecido";
+    const canalVenda = MAPA_CANAL[pedido.loja.id] || "Desconhecido";}
 
 /* ======================================================
    DEBUG – PEDIDO POR NÚMERO
