@@ -151,36 +151,41 @@ async function alterarStatusPedido(pedido, statusDestino) {
  * - Aplica regras
  */
 export async function processarPedidoPorId(idPedido) {
-  const resp = await executarNaFilaBling(() =>
-    safeRequest(() =>
-      axios.get(
+        const resp = await executarNaFilaBling(() => 
+        safeRequest(() =>
+        axios.get(
         `https://api.bling.com.br/Api/v3/pedidos/vendas/${idPedido}`,
         { headers: getHeaders() }
-      )
-    )
-  );
+                )
+        )
+        );
 
-  const pedido = resp.data.data;
-  const canalVenda = BuscarCanalVenda(pedido.loja.id);
+        const pedido = resp.data.data;
+        const canalVenda = BuscarCanalVenda(pedido.loja.id);
 
-  // ✅ AQUI ENTRA A ATUALIZAÇÃO DE RASTREIO (SEM RETURN!)
-  await atualizarCodigoRastreio(pedido);
-  await buscarEtiquetaZPL(pedido.id, pedido.numero, canalVenda);
-  
-  /* ---------------------------
-     Processa Pedido Cancelado
-     --------------------------- */
-if (pedido.situacao.id === 12) {
-  const removido = await removerPedidoExpedicao(pedido.numero);
+        // ✅ SOMENTE PARA PEDIDOS DIFERENTES DE STATUS 6
+        if (pedido.situacao.id !== 6) {
+        // ✅ AQUI ENTRA A ATUALIZAÇÃO DE RASTREIO (SEM RETURN!)
+                  await atualizarCodigoRastreio(pedido);
+                  await buscarEtiquetaZPL(pedido.id, pedido.numero, canalVenda);
+        } else {
+                  console.log(`🆕 Pedido ${pedido.numero} em status 6 — pulando rastreio e etiqueta`);
+        }
 
-  if (removido) {
-    console.log(`🗑️ Pedido ${pedido.numero} cancelado – registro removido da expedição`);
-  } else {
-    console.log(`ℹ️ Pedido ${pedido.numero} cancelado – não havia registro de expedição`);
-  }
+        /* ---------------------------
+             Processa Pedido Cancelado
+             --------------------------- */
+        if (pedido.situacao.id === 12) {
+                  const removido = await removerPedidoExpedicao(pedido.numero);
 
-  return;
-}
+          if (removido) {
+            console.log(`🗑️ Pedido ${pedido.numero} cancelado – registro removido da expedição`);
+          } else {
+            console.log(`ℹ️ Pedido ${pedido.numero} cancelado – não havia registro de expedição`);
+          }
+
+          return;
+        }
   
 /* ---------------------------
    PROCESSA PEDIDO COM NF (STATUS 9)
