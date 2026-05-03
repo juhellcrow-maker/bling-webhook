@@ -170,7 +170,7 @@ export async function processarPedidoPorId(idPedido) {
           // Se existir função similar:
           // await removerRegistroLancamentoEstoque(pedido.numero);
 
-          console.log('🔄 Pedido ${pedido.numero} retornou ao status 6 — liberando novo lançamento de estoque`);
+          console.log(`🔄 Pedido ${pedido.numero} retornou ao status 6 — liberando novo lançamento de estoque`);
         }
 
         // ✅ SOMENTE PARA PEDIDOS DIFERENTES DE STATUS 6
