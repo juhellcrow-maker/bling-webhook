@@ -178,7 +178,7 @@ export async function processarPedidoPorId(idPedido) {
         }
 
         // ✅ SOMENTE PARA PEDIDOS DIFERENTES DE STATUS 6
-        if (pedido.situacao.id !== 15) {
+        if (pedido.situacao.id === 15) {
                 console.log(`🔄 Pedido aguardando Faturamento ${pedido.numero} via Canal: ${canalVenda} `);
         }
 
