@@ -167,7 +167,7 @@ export async function processarPedidoPorId(idPedido) {
          // ✅ Pedidos com Envio Programado, aguardando etiqueta.
         if (pedido.situacao.id === 462967) {
           await removerPedidoExpedicao(pedido.numero);
-          console.log(`⏸️ Pedido ${pedido.numero} em status 462967 — processamento ignorado até liberação`);
+          console.log(`⏸️ Pedido ${pedido.numero} envio futuro, aguardando liberação etiqueta`);
           return;
         }
         
