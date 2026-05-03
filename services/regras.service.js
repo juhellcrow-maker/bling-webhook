@@ -168,8 +168,6 @@ export async function processarPedidoPorId(idPedido) {
         // ✅ AQUI ENTRA A ATUALIZAÇÃO DE RASTREIO (SEM RETURN!)
                   await atualizarCodigoRastreio(pedido);
                   await buscarEtiquetaZPL(pedido.id, pedido.numero, canalVenda);
-        } else {
-                  console.log(`🆕 Pedido ${pedido.numero} em status 6 — pulando rastreio e etiqueta`);
         }
 
         /* ---------------------------
