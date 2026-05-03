@@ -19,17 +19,6 @@ import {
 
 const router = Router();
 
-/* ======================================================
-       2️⃣ CANAL DE VENDA (REGRA INTERNA)
-       ====================================================== */
-    const MAPA_CANAL = {
-      205415213: "Filial AMZ",
-      204782103: "Matriz AMZ",
-      204964661: "Filial ML",
-      204560827: "Matriz ML"
-    };
-
-    const canalVenda = MAPA_CANAL[pedido.loja.id] || "Desconhecido";}
 
 /* ======================================================
    DEBUG – PEDIDO POR NÚMERO
@@ -78,6 +67,18 @@ router.get("/debug-pedido/:numero", async (req, res) => {
     );
 
     const pedido = detalhe.data.data;
+
+    /* ======================================================
+       2️⃣ CANAL DE VENDA (REGRA INTERNA)
+       ====================================================== */
+    const MAPA_CANAL = {
+      205415213: "Filial AMZ",
+      204782103: "Matriz AMZ",
+      204964661: "Filial ML",
+      204560827: "Matriz ML"
+    };
+
+    const canalVenda = MAPA_CANAL[pedido.loja.id] || "Desconhecido";
 
     /* ======================================================
        3️⃣ MONTA DEBUG ENRIQUECIDO
@@ -327,7 +328,7 @@ router.get("/debug-pedido-expedicao/:numero", async (req, res) => {
 
     /* ======================================================
        2️⃣ CANAL DE VENDA (REGRA INTERNA)
-       
+    ====================================================== */       
     const MAPA_CANAL = {
       205415213: "Filial AMZ",
       204782103: "Matriz AMZ",
@@ -336,7 +337,7 @@ router.get("/debug-pedido-expedicao/:numero", async (req, res) => {
     };
 
     const canalVenda = MAPA_CANAL[pedido.loja.id] || "Desconhecido";
-    ====================================================== */
+
 
     /* ======================================================
        3️⃣ DEPÓSITO (REGRA INTERNA)
