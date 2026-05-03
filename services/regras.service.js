@@ -174,16 +174,12 @@ export async function processarPedidoPorId(idPedido) {
         // ✅ Se pedido voltou para status 6, resetar controle interno de estoque
         if (pedido.situacao.id === 6) {
           await removerPedidoExpedicao(pedido.numero);
-          // Se existir função similar:
-          // await removerRegistroLancamentoEstoque(pedido.numero);
           console.log(`🔄 Novo Pedido ${pedido.numero} via Canal: ${canalVenda} `);
         }
 
         // ✅ SOMENTE PARA PEDIDOS DIFERENTES DE STATUS 6
-        if (pedido.situacao.id !== 6) {
-        // ✅ AQUI ENTRA A ATUALIZAÇÃO DE RASTREIO (SEM RETURN!)
-                  await atualizarCodigoRastreio(pedido);
-                  await buscarEtiquetaZPL(pedido.id, pedido.numero, canalVenda);
+        if (pedido.situacao.id !== 15) {
+                console.log(`🔄 Pedido aguardando Faturamento ${pedido.numero} via Canal: ${canalVenda} `);
         }
 
         /* ---------------------------
@@ -202,11 +198,12 @@ export async function processarPedidoPorId(idPedido) {
         }
   
 /* ---------------------------
-   PROCESSA PEDIDO COM NF (STATUS 9)
+   Atualiza BD Tabela pedidos_expedicao
    --------------------------- */
 if (pedido.situacao.id === 9) {
-  await atualizarPedidoComNotaFiscal(pedido);
-  return;
+        await atualizarPedidoComNotaFiscal(pedido);
+        await atualizarCodigoRastreio(pedido);
+        await buscarEtiquetaZPL(pedido.id, pedido.numero, canalVenda);
 }
 /* ---------------------------
      ETAPA 1 – CONFIRMAÇÃO
