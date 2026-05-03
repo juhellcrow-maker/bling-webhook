@@ -163,6 +163,16 @@ export async function processarPedidoPorId(idPedido) {
         const pedido = resp.data.data;
         const canalVenda = BuscarCanalVenda(pedido.loja.id);
 
+        
+        // ✅ Se pedido voltou para status 6, resetar controle interno de estoque
+        if (pedido.situacao.id === 6) {
+          await removerPedidoExpedicao(pedido.numero);
+          // Se existir função similar:
+          // await removerRegistroLancamentoEstoque(pedido.numero);
+
+          console.log('🔄 Pedido ${pedido.numero} retornou ao status 6 — liberando novo lançamento de estoque`);
+        }
+
         // ✅ SOMENTE PARA PEDIDOS DIFERENTES DE STATUS 6
         if (pedido.situacao.id !== 6) {
         // ✅ AQUI ENTRA A ATUALIZAÇÃO DE RASTREIO (SEM RETURN!)
