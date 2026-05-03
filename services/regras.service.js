@@ -164,12 +164,18 @@ export async function processarPedidoPorId(idPedido) {
         const canalVenda = BuscarCanalVenda(pedido.loja.id);
 
         
+         // ✅ Pedidos com Envio Programado, aguardando etiqueta.
+        if (pedido.situacao.id === 462967) {
+          await removerPedidoExpedicao(pedido.numero);
+          console.log(`⏸️ Pedido ${pedido.numero} em status 462967 — processamento ignorado até liberação`);
+          return;
+        }
+        
         // ✅ Se pedido voltou para status 6, resetar controle interno de estoque
         if (pedido.situacao.id === 6) {
           await removerPedidoExpedicao(pedido.numero);
           // Se existir função similar:
           // await removerRegistroLancamentoEstoque(pedido.numero);
-
           console.log(`🔄 Pedido ${pedido.numero} retornou ao status 6 — liberando novo lançamento de estoque`);
         }
 
