@@ -167,6 +167,18 @@ router.get("/debug-pedido/:numero", async (req, res) => {
     };
 
     /* ======================================================
+       2️⃣ CANAL DE VENDA (REGRA INTERNA)
+       ====================================================== */
+    const MAPA_CANAL = {
+      205415213: "Filial AMZ",
+      204782103: "Matriz AMZ",
+      204964661: "Filial ML",
+      204560827: "Matriz ML"
+    };
+
+    const canalVenda = MAPA_CANAL[pedido.loja.id] || "Desconhecido";
+
+    /* ======================================================
        4️⃣ LOG OPERACIONAL LIMPO
        ====================================================== */
     console.log("🧾 DEBUG PEDIDO");
