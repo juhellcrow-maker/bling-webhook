@@ -147,9 +147,9 @@ async function alterarStatusPedido(pedido, statusDestino) {
 /**
  * Orquestra todo o fluxo do pedido:
  * - Busca pedido
- * - Registra confirmação (WhatsApp)
  * - Aplica regras
  */
+
 export async function processarPedidoPorId(idPedido) {
         const resp = await executarNaFilaBling(() => 
         safeRequest(() =>
@@ -163,95 +163,80 @@ export async function processarPedidoPorId(idPedido) {
         const pedido = resp.data.data;
         const canalVenda = BuscarCanalVenda(pedido.loja.id);
 
-        
-         // ✅ Pedidos com Envio Programado, aguardando etiqueta.
+        // ✅ Pedidos com Envio Programado, aguardando etiqueta.
         if (pedido.situacao.id === 462967) {
-          await removerPedidoExpedicao(pedido.numero);
-          console.log(`⏸️ Pedido ${pedido.numero} envio futuro, aguardando liberação etiqueta`);
-          return;
-        }
+                await removerPedidoExpedicao(pedido.numero);
+                console.log(`⏸️ Pedido ${pedido.numero} envio futuro, aguardando liberação etiqueta`);
+                return;
+                }
         
         // ✅ Se pedido voltou para status 6, resetar controle interno de estoque
         if (pedido.situacao.id === 6) {
-          await removerPedidoExpedicao(pedido.numero);
-          console.log(`🔄 Novo Pedido ${pedido.numero} via Canal: ${canalVenda} `);
-        }
+                await removerPedidoExpedicao(pedido.numero);
+                console.log(`🔄 Novo Pedido ${pedido.numero} via Canal: ${canalVenda} `);
+                /* ---------------------------
+                     ETAPA 2 – MOTOR DE REGRAS
+                     --------------------------- */
+                const regra = encontrarRegraUnificada(pedido);
+                if (!regra) return;
+                /* ---------------------------
+                     REGRA SIMPLES
+                --------------------------- */
+                if (regra.tipo === "SIMPLES") {
+                        // 1️⃣ ALTERA O STATUS (PASSO PRINCIPAL)
+                        await alterarStatusPedido(pedido, regra.statusDestino);
+                        
+                        // 2️⃣ ATUALIZA STATUS NO OBJETO EM MEMÓRIA
+                        pedido.situacao.id = regra.statusDestino;
+                        
+                        // 3️⃣ RESOLVE DEPÓSITO PELO STATUS
+                        const depositoId = MAPA_DEPOSITO_POR_STATUS[regra.statusDestino];
+                        if (!depositoId) {
+                                throw new Error(`Depósito não definido para o status ${regra.statusDestino}`);
+                                }
+                        
+                        // 4️⃣ LANÇA ESTOQUE
+                        await lancarEstoqueUmaVez(pedido, depositoId);
+                        
+                        // 5️⃣ REGISTRA NO BANCO (EXPEDIÇÃO)
+                        const canalVenda = BuscarCanalVenda(pedido.loja.id);
+                        await registrarLancamentoEstoque({pedido, depositoId, canalVenda});
+                        return;
+                        }
 
-        // ✅ SOMENTE PARA PEDIDOS DIFERENTES DE STATUS 6
+                /* ---------------------------
+                     REGRA POR ESTOQUE
+                --------------------------- */
+                if (regra.tipo === "ESTOQUE") {
+                        await processarRegraPorEstoque(pedido, regra);
+                        return;
+                        }
+                
+                console.log(`📦 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
+                
+                }
+
+        // ✅ SOMENTE PARA PEDIDOS AGUARDANDO GERAR NFE E ETIQUETA
         if (pedido.situacao.id === 15) {
                 console.log(`🔄 Pedido aguardando Faturamento ${pedido.numero} via Canal: ${canalVenda} `);
-        }
+                }
 
-        /* ---------------------------
-             Processa Pedido Cancelado
-             --------------------------- */
+        // ✅ PROCESSA PEDIDOS CANCELADO EXCLUINDO DO BD
         if (pedido.situacao.id === 12) {
-                  const removido = await removerPedidoExpedicao(pedido.numero);
+                const removido = await removerPedidoExpedicao(pedido.numero);
+                if (removido) {
+                        console.log(`🗑️ Pedido ${pedido.numero} cancelado – registro removido da expedição`);
+                        } else {
+                        console.log(`ℹ️ Pedido ${pedido.numero} cancelado – não havia registro de expedição`);
+                        }
+                return;
+                }
 
-          if (removido) {
-            console.log(`🗑️ Pedido ${pedido.numero} cancelado – registro removido da expedição`);
-          } else {
-            console.log(`ℹ️ Pedido ${pedido.numero} cancelado – não havia registro de expedição`);
-          }
-
-          return;
-        }
-  
-/* ---------------------------
-   Atualiza BD Tabela pedidos_expedicao
-   --------------------------- */
-if (pedido.situacao.id === 9) {
-        await atualizarPedidoComNotaFiscal(pedido);
-        await atualizarCodigoRastreio(pedido);
-        await buscarEtiquetaZPL(pedido.id, pedido.numero, canalVenda);
-}
-/* ---------------------------
-     ETAPA 1 – CONFIRMAÇÃO
-       // Funciona para status 462097 (ex: confirmação ML)
-  await registrarPedidoConfirmacao(pedido);
---------------------------- */
-  /* ---------------------------
-     ETAPA 2 – MOTOR DE REGRAS
-     --------------------------- */
-  const regra = encontrarRegraUnificada(pedido);
-
-  if (!regra) return;
-
-  /* ---------------------------
-     REGRA SIMPLES
-     --------------------------- */
-if (regra.tipo === "SIMPLES") {
-
-  // 1️⃣ ALTERA O STATUS (PASSO PRINCIPAL)
-  await alterarStatusPedido(pedido, regra.statusDestino);
-
-  // 2️⃣ ATUALIZA STATUS NO OBJETO EM MEMÓRIA
-  pedido.situacao.id = regra.statusDestino;
-
-  // 3️⃣ RESOLVE DEPÓSITO PELO STATUS
-  const depositoId = MAPA_DEPOSITO_POR_STATUS[regra.statusDestino];
-  if (!depositoId) {
-    throw new Error(`Depósito não definido para o status ${regra.statusDestino}`);
-  }
-
-  // 4️⃣ LANÇA ESTOQUE
-  await lancarEstoqueUmaVez(pedido, depositoId);
-
-  // 5️⃣ REGISTRA NO BANCO (EXPEDIÇÃO)
-  const canalVenda = BuscarCanalVenda(pedido.loja.id);
-  await registrarLancamentoEstoque({pedido, depositoId, canalVenda});
-
-  return;
-}
-  
-  /* ---------------------------
-     REGRA POR ESTOQUE
-     --------------------------- */
-  if (regra.tipo === "ESTOQUE") {
-    await processarRegraPorEstoque(pedido, regra);
-    return;
-  }
-
-  console.log(`📦 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
+        // ✅ ATUALIZA DB QUANDO PEDIDO É ENVIADO PARA ATENDIDO
+        if (pedido.situacao.id === 9) {
+                await atualizarPedidoComNotaFiscal(pedido);
+                await atualizarCodigoRastreio(pedido);
+                await buscarEtiquetaZPL(pedido.id, pedido.numero, canalVenda);
+                }
 }
 
