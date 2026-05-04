@@ -163,49 +163,77 @@ export async function processarPedidoPorId(idPedido) {
         const pedido = resp.data.data;
         const canalVenda = BuscarCanalVenda(pedido.loja.id);
 
-        // ✅ Pedidos com Envio Programado, aguardando etiqueta.
+        // ✅ Pedidos com Envio Programado – RESERVA DE ESTOQUE
         if (pedido.situacao.id === 462967) {
-                /* ---------------------------
-                     ETAPA 2 – MOTOR DE REGRAS
-                     --------------------------- */
+                console.log(`⏸️ Pedido ${pedido.numero} envio futuro — avaliando regra e reservando estoque`);
                 const regra = encontrarRegraUnificada(pedido);
                 if (!regra) return;
                 /* ---------------------------
-                     REGRA SIMPLES
+                       REGRA SIMPLES
                 --------------------------- */
                 if (regra.tipo === "SIMPLES") {
-                        // 1️⃣ ALTERA O STATUS (PASSO PRINCIPAL)
-                        //await alterarStatusPedido(pedido, regra.statusDestino);
-                        
-                        // 2️⃣ ATUALIZA STATUS NO OBJETO EM MEMÓRIA
-                        pedido.situacao.id = regra.statusDestino;
-                        
-                        // 3️⃣ RESOLVE DEPÓSITO PELO STATUS
+                        // ❌ NÃO altera status
+                        // ❌ NÃO altera pedido.situacao.id
+
                         const depositoId = MAPA_DEPOSITO_POR_STATUS[regra.statusDestino];
                         if (!depositoId) {
-                                throw new Error(`Depósito não definido para o status ${regra.statusDestino}`);
+                            throw new Error(
+                                    `Depósito não definido para o status ${regra.statusDestino}`
+                                    );
                                 }
-                        
-                        // 4️⃣ LANÇA ESTOQUE
                         await lancarEstoqueUmaVez(pedido, depositoId);
-                        
-                        // 5️⃣ REGISTRA NO BANCO (EXPEDIÇÃO)
                         const canalVenda = BuscarCanalVenda(pedido.loja.id);
-                        await registrarLancamentoEstoque({pedido, depositoId, canalVenda});
+                        await registrarLancamentoEstoque({
+                            pedido,
+                            depositoId,
+                            canalVenda
+                                });
+
+                        console.log(`🔒 Estoque reservado (regra simples) para pedido ${pedido.numero}`);
                         return;
                         }
+                
 
                 /* ---------------------------
-                     REGRA POR ESTOQUE
-                --------------------------- */
-                if (regra.tipo === "ESTOQUE") {
-                        await processarRegraPorEstoque(pedido, regra);
-                        return;
-                        } 
-                await removerPedidoExpedicao(pedido.numero);
-                console.log(`⏸️ Pedido ${pedido.numero} - Canal ${CanalVenda} envio futuro, aguardando liberação etiqueta`);
-                return;
-                }
+                       REGRA POR ESTOQUE
+               --------------------------- */
+            if (regra.tipo === "ESTOQUE") {
+                    for (const prioridade of regra.prioridades) {
+                            const temSaldo = await pedidoTemSaldoCompletoNoDeposito(
+                                    pedido,
+                                    prioridade.depositoId
+                                    );
+                            console.log(
+              `📦 Reserva ${prioridade.nome} → saldo ok: ${temSaldo}`
+            );
+
+            if (!temSaldo) continue;
+
+            // ✅ SOMENTE RESERVA ESTOQUE
+            await lancarEstoqueUmaVez(pedido, prioridade.depositoId);
+
+            const canalVenda = BuscarCanalVenda(pedido.loja.id);
+            await registrarLancamentoEstoque({
+                pedido,
+                depositoId: prioridade.depositoId,
+                canalVenda
+            });
+
+            console.log(
+              `🔒 Estoque reservado para pedido ${pedido.numero}`
+            );
+
+            return;
+        }
+
+        console.log(
+          `⚠️ Pedido ${pedido.numero} envio futuro — sem saldo para reserva`
+        );
+        return;
+    }
+await removerPedidoExpedicao(pedido.numero);
+    return;
+}
         
         // ✅ Se pedido voltou para status 6, resetar controle interno de estoque
         if (pedido.situacao.id === 6) {
