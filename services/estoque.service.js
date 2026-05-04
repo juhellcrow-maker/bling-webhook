@@ -113,9 +113,7 @@ export async function lancarEstoqueUmaVez(
       )
     );
 
-    console.log(`✅ Estoque lançado no Bling`);
-
-  } catch (err) {
+    } catch (err) {
     const fields = err.response?.data?.error?.fields || [];
     const jaLancado = fields.some(f => f.code === 61 || f.code === 66);
 
@@ -124,33 +122,4 @@ export async function lancarEstoqueUmaVez(
     console.log(`ℹ️ Estoque já estava lançado no Bling`);
   }
 
-  /* ---------------------------
-     3️⃣ REGISTRA NO BANCO (ETAPA 1)
-     --------------------------- */
-    
-  await pool.query(
-    `
-    INSERT INTO pedidos_expedicao (
-      pedido_numero,
-      pedido_numero_loja,
-      loja_id,
-      marketplace,
-      deposito_lancado,
-      data_lancamento_estoque,
-      status_bling
-    )
-    VALUES ($1, $2, $3, $4, $5, NOW(), $6)
-    `,
-    [
-      pedido.numero,
-      pedido.numeroLoja,
-      pedido.loja.id,
-      depositoId,
-      pedido.situacao.id
-    ]
-  ); 
-
-  console.log(
-    `🗄️ Pedido ${pedidoNumero} registrado no banco (Etapa 1)`
-  );
 }
