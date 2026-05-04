@@ -107,9 +107,22 @@ async function processarRegraPorEstoque(pedido, regra) {
  * Altera o status do pedido no Bling
  * de forma segura.
  */
+
 async function alterarStatusPedido(pedido, statusDestino) {
+
+  // 🔒 BLOQUEIO GLOBAL PARA ENVIO FUTURO
+  if (pedido.situacao.id === 462967) {
+    console.log(
+      `⛔ Alteração de status ignorada — Pedido ${pedido.numero}  em envio futuro (462967)`
+    );
+    return;
+  }
+
+  // ✅ Proteção contra alteração redundante
   if (pedido.situacao.id === statusDestino) {
-    console.log(`ℹ️ Pedido ${pedido.numero} já está no status ${statusDestino}`);
+    console.log(
+      `ℹ️ Pedido ${pedido.numero} já está no status ${statusDestino}`
+    );
     return;
   }
 
@@ -117,7 +130,9 @@ async function alterarStatusPedido(pedido, statusDestino) {
     `https://api.bling.com.br/Api/v3/pedidos/vendas/${pedido.id}/situacoes/${statusDestino}`;
 
   try {
-    console.log(`🚦 Alterando status do pedido ${pedido.numero} → ${statusDestino}`);
+    console.log(
+      `🚦 Alterando status do pedido ${pedido.numero} → ${statusDestino}`
+    );
 
     const r = await executarNaFilaBling(() =>
       safeRequest(() =>
@@ -126,19 +141,24 @@ async function alterarStatusPedido(pedido, statusDestino) {
     );
 
     console.log(`✅ Status alterado HTTP ${r.status}`);
+
   } catch (err) {
     const fields = err.response?.data?.error?.fields || [];
-    const mesmaSituacao = err.response?.status === 400 && fields.some(f => f.code === 50);
-
+    const mesmaSituacao =
+      err.response?.status === 400 &&
+      fields.some(f => f.code === 50);
 
     if (mesmaSituacao) {
-      console.log(`ℹ️ Status do pedido ${pedido.numero} já estava em ${statusDestino}`);
+      console.log(
+        `ℹ️ Status do pedido ${pedido.numero} já estava em ${statusDestino}`
+      );
       return;
     }
 
     throw err;
   }
 }
+
 
 /* ======================================================
    PROCESSO PRINCIPAL (ENTRADA DO WEBHOOK)
@@ -165,75 +185,48 @@ export async function processarPedidoPorId(idPedido) {
 
         // ✅ Pedidos com Envio Programado – RESERVA DE ESTOQUE
         if (pedido.situacao.id === 462967) {
-                console.log(`⏸️ Pedido ${pedido.numero} envio futuro — avaliando regra e reservando estoque`);
+                console.log(`🔄 Novo Pedido ${pedido.numero} via Canal: ${canalVenda} envio Futuro`);
+                /* ---------------------------
+                     ETAPA 2 – MOTOR DE REGRAS
+                     --------------------------- */
                 const regra = encontrarRegraUnificada(pedido);
                 if (!regra) return;
                 /* ---------------------------
-                       REGRA SIMPLES
+                     REGRA SIMPLES
                 --------------------------- */
                 if (regra.tipo === "SIMPLES") {
-                        // ❌ NÃO altera status
-                        // ❌ NÃO altera pedido.situacao.id
-
+                        // 1️⃣ ALTERA O STATUS (PASSO PRINCIPAL)
+                        await alterarStatusPedido(pedido, regra.statusDestino);
+                        
+                        // 2️⃣ ATUALIZA STATUS NO OBJETO EM MEMÓRIA
+                        pedido.situacao.id = regra.statusDestino;
+                        
+                        // 3️⃣ RESOLVE DEPÓSITO PELO STATUS
                         const depositoId = MAPA_DEPOSITO_POR_STATUS[regra.statusDestino];
                         if (!depositoId) {
-                            throw new Error(
-                                    `Depósito não definido para o status ${regra.statusDestino}`
-                                    );
+                                throw new Error(`Depósito não definido para o status ${regra.statusDestino}`);
                                 }
+                        
+                        // 4️⃣ LANÇA ESTOQUE
                         await lancarEstoqueUmaVez(pedido, depositoId);
+                        
+                        // 5️⃣ REGISTRA NO BANCO (EXPEDIÇÃO)
                         const canalVenda = BuscarCanalVenda(pedido.loja.id);
-                        await registrarLancamentoEstoque({
-                            pedido,
-                            depositoId,
-                            canalVenda
-                                });
-
-                        console.log(`🔒 Estoque reservado (regra simples) para pedido ${pedido.numero}`);
+                        await registrarLancamentoEstoque({pedido, depositoId, canalVenda});
                         return;
                         }
-                
 
                 /* ---------------------------
-                       REGRA POR ESTOQUE
-               --------------------------- */
-            if (regra.tipo === "ESTOQUE") {
-                    for (const prioridade of regra.prioridades) {
-                            const temSaldo = await pedidoTemSaldoCompletoNoDeposito(
-                                    pedido,
-                                    prioridade.depositoId
-                                    );
-                            console.log(
-              `📦 Reserva ${prioridade.nome} → saldo ok: ${temSaldo}`
-            );
-
-            if (!temSaldo) continue;
-
-            // ✅ SOMENTE RESERVA ESTOQUE
-            await lancarEstoqueUmaVez(pedido, prioridade.depositoId);
-
-            const canalVenda = BuscarCanalVenda(pedido.loja.id);
-            await registrarLancamentoEstoque({
-                pedido,
-                depositoId: prioridade.depositoId,
-                canalVenda
-            });
-
-            console.log(
-              `🔒 Estoque reservado para pedido ${pedido.numero}`
-            );
-
-            return;
-        }
-
-        console.log(
-          `⚠️ Pedido ${pedido.numero} envio futuro — sem saldo para reserva`
-        );
-        return;
-    }
-await removerPedidoExpedicao(pedido.numero);
-    return;
-}
+                     REGRA POR ESTOQUE
+                --------------------------- */
+                if (regra.tipo === "ESTOQUE") {
+                        await processarRegraPorEstoque(pedido, regra);
+                        return;
+                        }
+                await removerPedidoExpedicao(pedido.numero);
+                nsole.log(`📦 Pedido ${pedido.numero} | Canal ${canalVenda} Removido do Pedidos Expedição`);
+                
+                }
         
         // ✅ Se pedido voltou para status 6, resetar controle interno de estoque
         if (pedido.situacao.id === 6) {
