@@ -13,6 +13,7 @@
 
 import axios from "axios";
 import { pool } from "../db/db.js";
+import { BuscarCanalVenda } from "../config/canaisVenda.js";
 import {
   executarNaFilaBling,
   safeRequest,
@@ -76,6 +77,7 @@ export async function lancarEstoqueUmaVez(
   ) {
   const pedidoNumero = pedido.numero;
   const pedidoId = pedido.id;
+  const marketplace = BuscarCanalVenda(pedido.loja.id);
 
   /* ---------------------------
      1️⃣ VERIFICA SE JÁ EXISTE NO BANCO
@@ -132,6 +134,7 @@ export async function lancarEstoqueUmaVez(
       pedido_numero,
       pedido_numero_loja,
       loja_id,
+      marketplace,
       deposito_lancado,
       data_lancamento_estoque,
       status_bling
