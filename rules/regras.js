@@ -54,13 +54,13 @@ export default [
         nome: "SS Rio Preto",
         depositoId: 14888665295,
         statusDestino: 462097,
-        lancarEstoque: true
+        lancarEstoque: false
       },
       {
         nome: "PS Ribeirão",
         depositoId: 14888631397,
         statusDestino: 462966,
-        lancarEstoque: true
+        lancarEstoque: false
       }
     ]
   },
@@ -80,13 +80,13 @@ export default [
         nome: "SS Rio Preto",
         depositoId: 14888665295,
         statusDestino: 462097,
-        lancarEstoque: true
+        lancarEstoque: false
       },
       {
         nome: "SS Catanduva",
         depositoId: 14888906921,
         statusDestino: 462097,
-        lancarEstoque: true
+        lancarEstoque: false
       },
       {
         nome: "PS Ribeirão",
@@ -112,13 +112,13 @@ export default [
         nome: "SS Rio Preto",
         depositoId: 14888665295,
         statusDestino: 462097,
-        lancarEstoque: true
+        lancarEstoque: false
       },
       {
         nome: "PS Ribeirão",
         depositoId: 14888631397,
         statusDestino: 462966,
-        lancarEstoque: true
+        lancarEstoque: false
       }
     ]
   },
@@ -137,13 +137,13 @@ export default [
         nome: "SS Rio Preto",
         depositoId: 14888665295,
         statusDestino: 462097,
-        lancarEstoque: true
+        lancarEstoque: false
       },
       {
         nome: "PS Ribeirão",
         depositoId: 14888631397,
         statusDestino: 462966,
-        lancarEstoque: true
+        lancarEstoque: false
       }
     ]
   },
