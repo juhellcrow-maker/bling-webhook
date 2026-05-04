@@ -124,6 +124,7 @@ export async function lancarEstoqueUmaVez(
 
   /* ---------------------------
      3️⃣ REGISTRA NO BANCO (ETAPA 1)
+     --------------------------- */
     
   await pool.query(
     `
@@ -148,5 +149,5 @@ export async function lancarEstoqueUmaVez(
 
   console.log(
     `🗄️ Pedido ${pedidoNumero} registrado no banco (Etapa 1)`
-  );--------------------------- */
+  );
 }
