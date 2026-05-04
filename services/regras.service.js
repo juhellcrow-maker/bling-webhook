@@ -72,7 +72,9 @@ async function processarRegraPorEstoque(pedido, regra) {
     if (!temSaldo) continue;
 
     // 1️⃣ ALTERA STATUS
-    await alterarStatusPedido(pedido, prioridade.statusDestino);
+          if (pedido.situacao.id !== 462967) {
+                  await alterarStatusPedido(pedido, prioridade.statusDestino);
+                  pedido.situacao.id = prioridade.statusDestino;}
 
     // 2️⃣ ATUALIZA STATUS EM MEMÓRIA
     pedido.situacao.id = prioridade.statusDestino;
