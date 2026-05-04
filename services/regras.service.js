@@ -232,11 +232,33 @@ export async function processarPedidoPorId(idPedido) {
                 return;
                 }
 
-        // ✅ ATUALIZA DB QUANDO PEDIDO É ENVIADO PARA ATENDIDO
+        // ✅ PROCESSA STATUS 9 APENAS SE AINDA NÃO FOI COMPLETAMENTE TRATADO
         if (pedido.situacao.id === 9) {
+                const jaProcessado = await pedidoJaProcessadoNoAtendido(pedido.numero);
+                if (jaProcessado) {
+                        console.log(`⏩ Pedido ${pedido.numero} já processado no status 9 — ignorando webhook`);
+                        return;
+                }
                 await atualizarPedidoComNotaFiscal(pedido);
                 await atualizarCodigoRastreio(pedido);
                 await buscarEtiquetaZPL(pedido.id, pedido.numero, canalVenda);
-                }
+                console.log(`⏩ Pedido ${pedido.numero} Atualizado NF-e Etiqueta no BD`);
+}
 }
 
+/* ----- Verifica se Pedidos já foram Processados ----- */
+
+async function pedidoJaProcessadoNoAtendido(pedidoNumero) {
+  const result = await pool.query(
+    `
+    SELECT 1
+    FROM pedidos_expedicao
+    WHERE pedido_numero = $1
+      AND nota_fiscal IS NOT NULL
+      AND etiqueta_zpl IS NOT NULL
+    `,
+    [pedidoNumero]
+  );
+
+  return result.rowCount > 0;
+}
