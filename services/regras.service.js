@@ -256,6 +256,7 @@ export async function processarPedidoPorId(idPedido) {
                         pedido.situacao.id = prioridade.statusDestino;
                         console.log(`📦 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
                         return;
+                }
   }
 
 
