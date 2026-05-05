@@ -247,18 +247,17 @@ export async function processarPedidoPorId(idPedido) {
                         await registrarLancamentoEstoque({pedido, depositoId, canalVenda});
                         return;
                         }
-
-                /* ---------------------------
-                     REGRA POR ESTOQUE
-                --------------------------- */
+                // ✅ REGRA ESTOQUE (AQUI ESTAVA FALTANDO)
                 if (regra.tipo === "ESTOQUE") {
-                        await processarRegraPorEstoque(pedido, regra);
+                        const prioridade = await processarRegraPorEstoque(pedido, regra);
+                        if (!prioridade) return;
+                        // ✅ ALTERAÇÃO DE STATUS RESTAURADA
+                        await alterarStatusPedido(pedido, prioridade.statusDestino);
+                        pedido.situacao.id = prioridade.statusDestino;
+                        console.log(`📦 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
                         return;
-                        }
-                
-                console.log(`📦 Pedido ${pedido.numero} | Status ${pedido.situacao.id}`);
-                
-                }
+  }
+
 
         // ✅ SOMENTE PARA PEDIDOS AGUARDANDO GERAR NFE E ETIQUETA
         if (pedido.situacao.id === 15) {
