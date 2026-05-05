@@ -38,13 +38,18 @@ const MAPA_DEPOSITO_POR_STATUS = {
  * - unidade de negócio (quando aplicável)
  */
 function encontrarRegraUnificada(pedido) {
+
+  // ✅ Envio futuro usa as regras do status 6
+  const statusParaRegra =
+    pedido.situacao.id === 462967
+      ? 6
+      : pedido.situacao.id;
+
   return REGRAS.find(r =>
     r.lojaId === pedido.loja.id &&
-    r.statusOrigem === pedido.situacao.id &&
+    r.statusOrigem === statusParaRegra &&
     (
-      // Regra sem condição de unidade
       !r.condicaoUnidade ||
-      // Regra com condição de unidade
       r.condicaoUnidade === pedido.loja.unidadeNegocio?.id
     )
   );
